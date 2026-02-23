@@ -206,9 +206,9 @@ function [errors, warnings] = validateArenaConfiguration(arenaConfig, verbose)
     warnings = {};
     
     % Check generation
-    validGenerations = {'G4', 'G4.1', 'G6'};
+    validGenerations = {'G3', 'G4', 'G4.1', 'G6'};
     if ~ismember(arenaConfig.generation, validGenerations)
-        errors{end+1} = sprintf('Invalid arena generation: %s (must be G4, G4.1, or G6)', ...
+        errors{end+1} = sprintf('Invalid arena generation: %s (must be G3, G4, G4.1, or G6)', ...
             arenaConfig.generation);
     end
     
