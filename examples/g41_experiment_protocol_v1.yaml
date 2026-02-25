@@ -8,9 +8,9 @@
 #   2. Run prepare_g41_experiment_sd.m to stage/copy to SD card
 #   3. Insert SD card into controller
 #
-# Usage:
-#   run_protocol('g41_experiment_protocol_v1.yaml', '10.102.40.209')
-#   run_protocol('g41_experiment_protocol_v1.yaml', '10.102.40.209', 'DryRun', true)
+# Usage (from project root):
+#   run_protocol('examples/g41_experiment_protocol_v1.yaml', '10.102.40.209')
+#   run_protocol('examples/g41_experiment_protocol_v1.yaml', '10.102.40.209', 'DryRun', true)
 
 version: 1
 
