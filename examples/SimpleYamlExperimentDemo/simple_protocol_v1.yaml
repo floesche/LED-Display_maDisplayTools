@@ -50,7 +50,7 @@ pretrial:
    
     # Display a test pattern to verify arena
     - type: "controller"
-      command_name: "startG41Trial"
+      command_name: "trialParams"
       pattern: 'pat0001_2row_gs2_sqGrate.pat'
       pattern_ID: 1
       duration: 2  # 2 seconds
@@ -189,7 +189,7 @@ posttrial:
 # setColorDepth - change the arena's accepted grayscale value 
 #   Parameters: gs_val: 2 or 16
 #
-# startG41Trial - start displaying a trial on the G4.1 system
+# trialParams - start displaying a trial on the G4.1 system
 #   Parameters: mode: integer 2-4 
 #               patID: integer from 1 - number of patterns available  
 #               posX: integer, starting frame number  

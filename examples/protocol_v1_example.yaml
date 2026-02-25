@@ -38,7 +38,7 @@ plugins:
 
   # Serial Device Plugin - LED controller
   - name: "led_controller"
-    type: "serial_device"
+    type: "class"
     port: "/dev/ttyUSB1"
     port_windows: "COM5"
     port_posix: "/dev/ttyUSB1"
@@ -60,6 +60,7 @@ plugins:
       ip: "127.0.0.1"
       port: 5020
       config_path: './config/simple_bias_config.json'
+      bias_executable: 'path/to/executable.exe'
 
   # Class Plugin - Data acquisition system
   - name: "daq_system"
