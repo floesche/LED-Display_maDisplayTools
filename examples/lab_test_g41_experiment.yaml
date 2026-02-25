@@ -5,7 +5,7 @@
 # Dry run:  run_lab_test('lab_test_g41_experiment.yaml', 'DryRun', true)
 
 lab_test:
-  version: 1
+  version: 2
   name: "G4.1 Experiment Patterns - Mode 2 Playback"
 
 connection:
@@ -55,8 +55,22 @@ patterns:
   - sd_slot: 12
     name: "luminance_levels_gs16"
     description: "Luminance levels, GS16, 16 frames"
+  - sd_slot: 13
+    name: "top_on_gs2"
+    description: "Top half ON, bottom half OFF, 1 frame (orientation check)"
+  - sd_slot: 14
+    name: "left_on_gs2"
+    description: "Left half ON, right half OFF, 1 frame (orientation check)"
+  - sd_slot: 15
+    name: "web_sq_grating_30deg_gs16"
+    description: "Web-encoded 30 deg square grating, GS16 (compare with slot 2)"
+  - sd_slot: 16
+    name: "web_sine_grating_30deg_gs16"
+    description: "Web-encoded 30 deg sine grating, GS16 (compare with slot 5)"
 
 checklist:
+  - "Orientation: slot 13 bright half is physically at TOP of arena?"
+  - "Orientation: slot 14 bright half is physically at LEFT of arena?"
   - "Gratings: Bars move smoothly left-to-right?"
   - "30 deg vs 60 deg: Wider bars for 60 deg?"
   - "GS2 vs GS16: GS16 gratings have visible ON/OFF only (no gray)?"
@@ -66,4 +80,5 @@ checklist:
   - "Counter GS16: Numbers visible, brightness ramps up/down?"
   - "Luminance GS2: One frame off, one frame on?"
   - "Luminance GS16: Brightness steps from black to full bright?"
+  - "Web vs MATLAB: Slot 15 identical to slot 2? Slot 16 identical to slot 5?"
   - "All panels active? No dead panels?"

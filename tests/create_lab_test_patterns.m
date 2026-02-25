@@ -1,20 +1,16 @@
-%% create_lab_test_patterns.m — Generate patterns for lab validation session
+%% create_lab_test_patterns.m — DEPRECATED
 %
-% Creates 9 patterns (MATLAB + web-generated) for testing:
-%   1. MATLAB GS2 vertical grating  (baseline)
-%   2. MATLAB GS16 vertical grating  (baseline)
-%   3. Web GS2 vertical grating      (web vs MATLAB comparison)
-%   4. Web GS16 vertical grating     (web vs MATLAB comparison)
-%   5. Web GS16 sine grating         (Mode 3 smooth motion)
-%   6. MATLAB GS16 multi-frame digits (Mode 3 stepping)
-%   7. MATLAB GS2 multi-frame digits  (Mode 3 stepping)
-%   8. MATLAB GS2 top-ON/bottom-OFF  (vertical orientation check)
-%   9. MATLAB GS2 left-ON/right-OFF  (horizontal orientation check)
+% This script has been superseded by create_g41_experiment_patterns.m,
+% which generates a unified set of 16 patterns including orientation
+% diagnostics and web roundtrip validation patterns.
 %
-% After running, deploy to SD card:
-%   mapping = prepare_sd_card(pattern_paths, 'D', 'Format', true);
-%
-% Then run diagnose_web_patterns.m to verify byte-level correctness.
+% Use instead:
+%   create_g41_experiment_patterns   % Generate all 16 patterns
+%   prepare_g41_experiment_sd        % Deploy to SD card
+
+error('DEPRECATED: Use create_g41_experiment_patterns.m instead.');
+
+%% Original code below (kept for reference) ================================
 
 %% Setup
 cd(project_root());

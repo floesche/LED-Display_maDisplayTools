@@ -1,6 +1,6 @@
 %% create_g41_experiment_patterns.m — Generate G4.1 experiment pattern set
 %
-% Creates 13 patterns for G4.1 lab testing and experiments:
+% Creates 16 patterns for G4.1 lab testing and experiments:
 %
 %   Gratings (vertical bars, horizontal motion):
 %     1.  sq_grating_30deg_gs2        — 30° square grating, GS2, 16 frames
@@ -20,8 +20,13 @@
 %     11. luminance_levels_gs2        — All-off then all-on, 2 frames
 %     12. luminance_levels_gs16       — All pixels at level 0..15, 16 frames
 %
-%   Panel identification:
-%     13. panel_index_gs2              — Panel IDs 1-24, column-major, 1 frame
+%   Orientation diagnostics:
+%     13. top_on_gs2                  — Top half ON, bottom half OFF, 1 frame
+%     14. left_on_gs2                 — Left half ON, right half OFF, 1 frame
+%
+%   Web-generated (roundtrip validation):
+%     15. web_sq_grating_30deg_gs16   — 30° square grating via web encoder
+%     16. web_sine_grating_30deg_gs16 — 30° sine grating via web encoder
 %
 % Target arena: G41_2x12_cw (32 rows x 192 cols, 24 panels, 360°)
 %
@@ -281,66 +286,56 @@ save_pattern(Pats, param, save_dir, 'pat12_luminance_levels_gs16');
 pattern_count = pattern_count + 1;
 fprintf('  OK: 16 frames\n');
 
-%% --- PANEL INDEX ---
+%% --- ORIENTATION DIAGNOSTICS ---
 
-%% Pattern 13: Panel index display, GS2
-fprintf('Pattern 13: panel_index_gs2\n');
-small_digits = define_small_digit_bitmaps();
-panel_size = 16;
-num_panel_rows = 2;
-num_panel_cols = 12;
-
-frame = zeros(rows, cols, 'uint8');
-
-for pc = 0:(num_panel_cols - 1)
-    for pr = 0:(num_panel_rows - 1)
-        % 1-indexed panel ID, column-major order
-        panel_id = pc * num_panel_rows + pr + 1;
-
-        % Panel pixel region in pre-flipud space (row 1 = visual top)
-        % pr=1 (top row) -> array rows 1:16
-        % pr=0 (bottom row) -> array rows 17:32
-        panel_row_start = (1 - pr) * panel_size + 1;
-        panel_col_start = pc * panel_size + 1;
-
-        % Render panel_id digits into a 16x16 sub-image
-        panel_img = zeros(panel_size, panel_size, 'uint8');
-
-        if panel_id < 10
-            % Single digit: center 8x8 bitmap in 16x16
-            bm = small_digits(:,:,panel_id + 1);
-            sr = floor((panel_size - 8) / 2) + 1;  % 5
-            sc = floor((panel_size - 8) / 2) + 1;  % 5
-            panel_img(sr:sr+7, sc:sc+7) = bm;
-        else
-            % Two digits: side-by-side, fills full 16px width
-            d_tens = floor(panel_id / 10);
-            d_ones = mod(panel_id, 10);
-            bm1 = small_digits(:,:,d_tens + 1);
-            bm2 = small_digits(:,:,d_ones + 1);
-            sr = floor((panel_size - 8) / 2) + 1;  % 5
-            panel_img(sr:sr+7, 1:8) = bm1;
-            panel_img(sr:sr+7, 9:16) = bm2;
-        end
-
-        % Place panel_img into the full frame
-        r1 = panel_row_start;
-        r2 = panel_row_start + panel_size - 1;
-        c1 = panel_col_start;
-        c2 = panel_col_start + panel_size - 1;
-        frame(r1:r2, c1:c2) = panel_img;
-    end
-end
-
-% Flip vertically: pattern row 1 is display bottom in G4/G4.1 format
-frame = flipud(frame);
-
+%% Pattern 13: Top-ON / Bottom-OFF
+% Top half of arena (rows 1-16) fully ON, bottom half OFF.
+% If bright half appears at the physical bottom, display is upside down.
+fprintf('Pattern 13: top_on_gs2\n');
 Pats = zeros(rows, cols, 1, 1, 'uint8');
-Pats(:,:,1,1) = frame;
+Pats(1:rows/2, :, 1, 1) = 1;
 param = make_param(2, 1, arena_config);
-save_pattern(Pats, param, save_dir, 'pat13_panel_index_gs2');
+save_pattern(Pats, param, save_dir, 'pat13_top_on_gs2');
 pattern_count = pattern_count + 1;
-fprintf('  OK: 1 frame, 24 panels labeled 1-24\n');
+fprintf('  OK: 1 frame\n');
+
+%% Pattern 14: Left-ON / Right-OFF
+% Left half of arena (cols 1-96) fully ON, right half OFF.
+% If bright half appears on the physical right, display is mirrored.
+fprintf('Pattern 14: left_on_gs2\n');
+Pats = zeros(rows, cols, 1, 1, 'uint8');
+Pats(:, 1:cols/2, 1, 1) = 1;
+param = make_param(2, 1, arena_config);
+save_pattern(Pats, param, save_dir, 'pat14_left_on_gs2');
+pattern_count = pattern_count + 1;
+fprintf('  OK: 1 frame\n');
+
+%% --- WEB-GENERATED PATTERNS (roundtrip validation) ---
+
+% Auto-detect webDisplayTools as sibling repo
+parent_dir = fileparts(project_root());
+web_tools_dir = fullfile(parent_dir, 'webDisplayTools');
+if exist(fullfile(web_tools_dir, 'js', 'pat-encoder.js'), 'file')
+    fprintf('\nGenerating web patterns via Node.js...\n');
+    web_gen_script = fullfile(save_dir, 'generate_web_patterns.js');
+    write_web_generator_script(web_gen_script, save_dir, web_tools_dir, rows, cols);
+
+    [status, output] = system(sprintf('node "%s"', web_gen_script));
+
+    if status ~= 0
+        fprintf('  WARNING: Web pattern generation failed:\n%s\n', output);
+        fprintf('  Patterns 15-16 not created. MATLAB patterns 1-14 are unaffected.\n');
+    else
+        fprintf('%s', output);
+        pattern_count = pattern_count + 2;
+    end
+
+    % Clean up generated script
+    delete(web_gen_script);
+else
+    fprintf('\nSkipping web patterns: webDisplayTools not found at %s\n', web_tools_dir);
+    fprintf('  Clone it as a sibling to maDisplayTools to enable web roundtrip.\n');
+end
 
 %% Summary
 fprintf('\n=== Generated %d Patterns ===\n', pattern_count);
@@ -352,11 +347,8 @@ for i = 1:length(pat_files)
 end
 fprintf('  Total: %.2f MB\n', total_bytes / 1e6);
 
-fprintf('\n=== SD Card Deployment ===\n');
-fprintf('pat_dir = fullfile(pwd, ''patterns'', ''reference'', ''G41_2x12_cw'');\n');
-fprintf('pat_files = dir(fullfile(pat_dir, ''*.pat''));\n');
-fprintf('pat_paths = sort(fullfile(pat_dir, {pat_files.name}));\n');
-fprintf('mapping = prepare_sd_card(pat_paths, ''D'', ''Format'', true);\n');
+fprintf('\n=== Next Steps ===\n');
+fprintf('Run prepare_g41_experiment_sd.m to deploy to SD card.\n');
 
 %% =========================================================================
 %% Helper Functions
@@ -459,39 +451,72 @@ function bitmaps = define_large_digit_bitmaps()
     end
 end
 
-function bitmaps = define_small_digit_bitmaps()
-    % 8x8 pixel digit bitmaps for digits 0-9.
-    % Used for panel index display where each panel is 16x16 pixels.
-    bitmaps = zeros(8, 8, 10, 'uint8');
+function write_web_generator_script(script_path, out_dir, web_dir, px_rows, px_cols)
+    % Write a Node.js script that generates web-encoded patterns matching
+    % MATLAB patterns 2 and 5 (30° square and sine gratings, GS16).
+    % Uses absolute paths for require() so it works on any platform.
 
-    bitmaps(:,:,1) = [  % 0
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0
-        0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0];
-    bitmaps(:,:,2) = [  % 1
-        0 0 0 1 1 0 0 0; 0 0 1 1 1 0 0 0; 0 1 1 1 1 0 0 0; 0 0 0 1 1 0 0 0
-        0 0 0 1 1 0 0 0; 0 0 0 1 1 0 0 0; 0 0 0 1 1 0 0 0; 0 1 1 1 1 1 1 0];
-    bitmaps(:,:,3) = [  % 2
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 1 1 0; 0 0 0 0 0 1 1 0; 0 0 0 0 1 1 0 0
-        0 0 0 1 1 0 0 0; 0 0 1 1 0 0 0 0; 0 1 1 0 0 0 0 0; 0 1 1 1 1 1 1 0];
-    bitmaps(:,:,4) = [  % 3
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 1 1 0; 0 0 0 0 0 1 1 0; 0 0 0 1 1 1 0 0
-        0 0 0 0 0 1 1 0; 0 0 0 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0];
-    bitmaps(:,:,5) = [  % 4
-        0 0 0 0 1 1 0 0; 0 0 0 1 1 1 0 0; 0 0 1 1 1 1 0 0; 0 1 1 0 1 1 0 0
-        0 1 1 1 1 1 1 0; 0 0 0 0 1 1 0 0; 0 0 0 0 1 1 0 0; 0 0 0 0 1 1 0 0];
-    bitmaps(:,:,6) = [  % 5
-        0 1 1 1 1 1 1 0; 0 1 1 0 0 0 0 0; 0 1 1 0 0 0 0 0; 0 1 1 1 1 1 0 0
-        0 0 0 0 0 1 1 0; 0 0 0 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0];
-    bitmaps(:,:,7) = [  % 6
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 0 0 0; 0 1 1 0 0 0 0 0; 0 1 1 1 1 1 0 0
-        0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0];
-    bitmaps(:,:,8) = [  % 7
-        0 1 1 1 1 1 1 0; 0 0 0 0 0 1 1 0; 0 0 0 0 1 1 0 0; 0 0 0 0 1 1 0 0
-        0 0 0 1 1 0 0 0; 0 0 0 1 1 0 0 0; 0 0 0 1 1 0 0 0; 0 0 0 1 1 0 0 0];
-    bitmaps(:,:,9) = [  % 8
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0
-        0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 0 0];
-    bitmaps(:,:,10) = [ % 9
-        0 0 1 1 1 1 0 0; 0 1 1 0 0 1 1 0; 0 1 1 0 0 1 1 0; 0 0 1 1 1 1 1 0
-        0 0 0 0 0 1 1 0; 0 0 0 0 0 1 1 0; 0 0 0 0 1 1 0 0; 0 0 1 1 1 0 0 0];
+    web_dir_js = strrep(web_dir, '\', '/');
+    out_dir_js = strrep(out_dir, '\', '/');
+
+    wavelength = 16;  % 30° at 1.875°/px
+    num_frames = wavelength;
+
+    fid = fopen(script_path, 'w');
+
+    fprintf(fid, '#!/usr/bin/env node\n');
+    fprintf(fid, '// Auto-generated by create_g41_experiment_patterns.m\n');
+    fprintf(fid, '// Web-encoded equivalents of MATLAB patterns 2 and 5\n\n');
+
+    fprintf(fid, 'const fs = require(''fs'');\n');
+    fprintf(fid, 'const path = require(''path'');\n');
+    fprintf(fid, 'const PatEncoder = require(''%s/js/pat-encoder.js'');\n', web_dir_js);
+    fprintf(fid, 'const { getArenaId, getGenerationId } = require(''%s/js/arena-configs.js'');\n\n', web_dir_js);
+
+    fprintf(fid, 'const outDir = ''%s'';\n', strrep(out_dir_js, '''', '\\'''));
+    fprintf(fid, 'const wavelength = %d;\n', wavelength);
+    fprintf(fid, 'const numFrames = %d;\n', num_frames);
+    fprintf(fid, 'const pixelRows = %d;\n', px_rows);
+    fprintf(fid, 'const pixelCols = %d;\n\n', px_cols);
+
+    % Square grating generator
+    fprintf(fid, 'function squareGrating(rows, cols, period, shift) {\n');
+    fprintf(fid, '    const frame = new Uint8Array(rows * cols);\n');
+    fprintf(fid, '    for (let r = 0; r < rows; r++)\n');
+    fprintf(fid, '        for (let c = 0; c < cols; c++)\n');
+    fprintf(fid, '            frame[r * cols + c] = ((c + shift) %% period + period) %% period < period / 2 ? 15 : 0;\n');
+    fprintf(fid, '    return frame;\n');
+    fprintf(fid, '}\n\n');
+
+    % Sine grating generator
+    fprintf(fid, 'function sineGrating(rows, cols, period, shift) {\n');
+    fprintf(fid, '    const frame = new Uint8Array(rows * cols);\n');
+    fprintf(fid, '    for (let r = 0; r < rows; r++)\n');
+    fprintf(fid, '        for (let c = 0; c < cols; c++)\n');
+    fprintf(fid, '            frame[r * cols + c] = Math.round((Math.sin(2 * Math.PI * (c + shift) / period) + 1) / 2 * 15);\n');
+    fprintf(fid, '    return frame;\n');
+    fprintf(fid, '}\n\n');
+
+    % Save helper
+    fprintf(fid, 'function savePattern(filename, genFunc) {\n');
+    fprintf(fid, '    const frames = [];\n');
+    fprintf(fid, '    for (let f = 0; f < numFrames; f++)\n');
+    fprintf(fid, '        frames.push(genFunc(pixelRows, pixelCols, wavelength, f));\n');
+    fprintf(fid, '    const buf = PatEncoder.encode({\n');
+    fprintf(fid, '        generation: ''G4.1'', gs_val: 16, numFrames,\n');
+    fprintf(fid, '        rowCount: pixelRows / 16, colCount: pixelCols / 16,\n');
+    fprintf(fid, '        pixelRows, pixelCols, frames,\n');
+    fprintf(fid, '        stretchValues: new Array(numFrames).fill(1),\n');
+    fprintf(fid, '        generation_id: getGenerationId(''G4.1''),\n');
+    fprintf(fid, '        arena_id: getArenaId(''G4.1'', ''G41_2x12_cw'') || 0,\n');
+    fprintf(fid, '        observer_id: 0\n');
+    fprintf(fid, '    });\n');
+    fprintf(fid, '    fs.writeFileSync(path.join(outDir, filename), Buffer.from(buf));\n');
+    fprintf(fid, '    console.log(''  Created: '' + filename + '' ('' + buf.byteLength + '' bytes)'');\n');
+    fprintf(fid, '}\n\n');
+
+    fprintf(fid, 'savePattern(''pat15_web_sq_grating_30deg_gs16.pat'', squareGrating);\n');
+    fprintf(fid, 'savePattern(''pat16_web_sine_grating_30deg_gs16.pat'', sineGrating);\n');
+
+    fclose(fid);
 end
