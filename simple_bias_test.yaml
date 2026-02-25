@@ -24,15 +24,16 @@ plugins:
     matlab:
       class: "BiasPlugin"
     config:
-      bias_executable: 'C:\Users\rathores\MATLAB\FlyBowl1Rig\BIAS_exe_spinnaker_win64_v0_73_1\v0.73.1\test_gui.exe'  # UPDATE THIS BEFORE RUNNING IF NEEDED
-      ip: "127.0.0.1"
-      port: 5020
-      config_path: './config/simple_bias_config.json'
+      bias_executable: 'C:\matlabroot\FlyBowl1Rig\bias_spinnaker\test_gui.exe'  # UPDATE THIS BEFORE RUNNING IF NEEDED
+      ip: "10.102.40.61"
+      port: 62222
+      config_path: 'C:\matlabroot\FlyBowl1Rig\bias_config_default1.json'
+
 # ============================================================================
 # EXPERIMENT STRUCTURE
 # ============================================================================
 experiment_structure:
-  repetitions: 2
+  repetitions: 1
   randomization:
     enabled: false 
     seed: null
@@ -42,75 +43,69 @@ experiment_structure:
 # PRETRIAL - Test plugin initialization
 # ============================================================================
 pretrial:
-  include: true
+  include: false
   commands:
     - type: "wait"
       duration: 1
     
-    # Test BIAS camera connection
-    - type: "plugin"
-      plugin_name: "bias_camera"
-      command_name: "connect"
-      params:
-        ip: "127.0.0.1" # UPDATE THESE BEFORE RUNNING IF NEED BE
-        port: 5010
-    
-    # Test loading configuration
-    - type: "plugin"
-      plugin_name: "bias_camera"
-      command_name: "loadConfiguration"
-      params:
-        config_path: 'C:\Users\rathores\MATLAB\FlyBowl1Rig\bias_config_default5.json'  # UPDATE THIS IF NEED BE BEFORE RUNNING
-    
-    - type: "wait"
-      duration: 1
-
 # ============================================================================
 # BLOCK - Test camera commands during trials
 # ============================================================================
 block:
   conditions:
-    - id: "Only Shubham's commands"
+    - id: "Start recording"
       commands:
         # Test disable logging
         - type: "plugin"
           plugin_name: "bias_camera"
-          command_name: "disableLogging"
-
-        # Test preview (optional)
-        - type: "plugin"
-          plugin_name: "bias_camera"
-          command_name: "preview"
-
-        - type: "plugin"
-          plugin_name: "bias_camera"
-          command_name: "stop"
-    
-    # Test simpleBias commands (if they're availabe in BiasControl, otherwise,comment out)
-    - id: "test_capture_2"
-      commands:
-        - type: "plugin"
-          plugin_name: "bias_camera"
-          command_name: "setVideoFile"
+          command_name: "startRecording"
           params:
-            filename: "test_trial_001.avi"
-        
+            filename: 'bias_test.avi'
+
+        - type: "wait"
+          duration: 10
+
         - type: "plugin"
           plugin_name: "bias_camera"
-          command_name: "startCapture"
-        
+          command_name: "stopRecording"
+
         - type: "wait"
-          duration: 1
-        
+          duration: 5
+
         - type: "plugin"
           plugin_name: "bias_camera"
           command_name: "stopCapture"
+
+    - id: "Start recording again"
+      commands:
+        # Test disable logging
+        - type: "plugin"
+          plugin_name: "bias_camera"
+          command_name: "startRecording"
+          params:
+            filename: 'bias_test2.avi'
+
+        - type: "wait"
+          duration: 10
+
+        - type: "plugin"
+          plugin_name: "bias_camera"
+          command_name: "stopRecording"
+
+        - type: "wait"
+          duration: 5
+
+        - type: "plugin"
+          plugin_name: "bias_camera"
+          command_name: "stopCapture"
+
+
 
 # ============================================================================
 # INTERTRIAL - Test timestamp logging
 # ============================================================================
 intertrial:
-  include: true
+  include: false
   commands:
     # Test getTimestamp command
     - type: "plugin"
@@ -124,7 +119,7 @@ intertrial:
 # POSTTRIAL - Test cleanup
 # ============================================================================
 posttrial:
-  include: true
+  include: false
   commands:
     # Final timestamp
     - type: "plugin"

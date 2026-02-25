@@ -19,9 +19,9 @@ function run_protocol(protocolFilePath, arenaIP, varargin)
 %   'DryRun' - Validate protocol without executing (default: false)
 %
 % Example:
-%   run_protocol('protocol.yaml')
-%   run_protocol('protocol.yaml', 'OutputDir', './my_experiments')
-%   run_protocol('protocol.yaml', 'Verbose', false, 'DryRun', true)
+%   run_protocol('protocol.yaml', '127.0.0.1')
+%   run_protocol('protocol.yaml', '127.0.0.1', 'OutputDir', './my_experiments')
+%   run_protocol('protocol.yaml', '127.0.0.1', 'Verbose', false, 'DryRun', true)
 %
 % Notes:
 %   - Pattern files must be manually copied to SD card before running

@@ -55,7 +55,7 @@ classdef PluginManager < handle
             end
             
             % Initialize the plugin
-            %plugin.initialize();
+            plugin.initialize();
             
             % Store in registry
             self.pluginRegistry(pluginName) = plugin;
