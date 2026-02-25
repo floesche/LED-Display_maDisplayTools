@@ -1,6 +1,6 @@
 %% create_lab_test_patterns.m — Generate patterns for lab validation session
 %
-% Creates 7 patterns (MATLAB + web-generated) for testing:
+% Creates 9 patterns (MATLAB + web-generated) for testing:
 %   1. MATLAB GS2 vertical grating  (baseline)
 %   2. MATLAB GS16 vertical grating  (baseline)
 %   3. Web GS2 vertical grating      (web vs MATLAB comparison)
@@ -8,6 +8,8 @@
 %   5. Web GS16 sine grating         (Mode 3 smooth motion)
 %   6. MATLAB GS16 multi-frame digits (Mode 3 stepping)
 %   7. MATLAB GS2 multi-frame digits  (Mode 3 stepping)
+%   8. MATLAB GS2 top-ON/bottom-OFF  (vertical orientation check)
+%   9. MATLAB GS2 left-ON/right-OFF  (horizontal orientation check)
 %
 % After running, deploy to SD card:
 %   mapping = prepare_sd_card(pattern_paths, 'D', 'Format', true);
@@ -29,7 +31,16 @@ if ~exist(save_dir, 'dir')
     mkdir(save_dir);
 end
 
-web_tools_dir = '/Users/reiserm/Documents/GitHub/webDisplayTools';
+% Auto-detect webDisplayTools as sibling repo (works on Mac + Windows)
+repo_root = project_root();
+parent_dir = fileparts(repo_root);
+web_tools_dir = fullfile(parent_dir, 'webDisplayTools');
+if ~exist(fullfile(web_tools_dir, 'js', 'pat-encoder.js'), 'file')
+    error(['Cannot find webDisplayTools repo.\n' ...
+           'Expected at: %s\n' ...
+           'Make sure webDisplayTools is cloned next to maDisplayTools.'], ...
+           web_tools_dir);
+end
 
 fprintf('=== Lab Test Pattern Generator ===\n\n');
 
@@ -106,6 +117,27 @@ for f = 1:num_frames
 end
 maDisplayTools.generate_pattern_from_array(Pats_digits2, save_dir, 'pat07_matlab_gs2_digits', 2, stretch);
 fprintf('  Created: pat07_matlab_gs2_digits\n');
+
+%% Pattern 8: Top-ON / Bottom-OFF (vertical orientation diagnostic)
+% Top half of arena (rows 1-16) is fully ON, bottom half (rows 17-32) is OFF.
+% Single frame — if you see the bright half on the physical bottom, display is
+% upside down.
+fprintf('Pattern 8: MATLAB GS2 top-ON / bottom-OFF\n');
+Pats_topbot = zeros(rows, cols, 1, 1, 'uint8');
+Pats_topbot(1:rows/2, :, 1, 1) = 1;   % top half ON
+stretch1 = uint8(1);
+maDisplayTools.generate_pattern_from_array(Pats_topbot, save_dir, 'pat08_matlab_gs2_top_on', 2, stretch1);
+fprintf('  Created: pat08_matlab_gs2_top_on\n');
+
+%% Pattern 9: Left-ON / Right-OFF (horizontal orientation diagnostic)
+% Left half of arena (cols 1-96) is fully ON, right half (cols 97-192) is OFF.
+% Single frame — if you see the bright half on the physical right, display is
+% mirrored.
+fprintf('Pattern 9: MATLAB GS2 left-ON / right-OFF\n');
+Pats_leftright = zeros(rows, cols, 1, 1, 'uint8');
+Pats_leftright(:, 1:cols/2, 1, 1) = 1;  % left half ON
+maDisplayTools.generate_pattern_from_array(Pats_leftright, save_dir, 'pat09_matlab_gs2_left_on', 2, stretch1);
+fprintf('  Created: pat09_matlab_gs2_left_on\n');
 
 %% Patterns 3, 4, 5, 8: Web-generated patterns via Node.js
 fprintf('\nGenerating web patterns via Node.js...\n');
