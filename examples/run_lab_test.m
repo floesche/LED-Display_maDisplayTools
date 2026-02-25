@@ -1,7 +1,7 @@
 function results = run_lab_test(yaml_file, varargin)
 %RUN_LAB_TEST Run a hardware lab test defined by a YAML config file
 %
-%   results = run_lab_test('lab_test_g41_experiment.yaml')
+%   results = run_lab_test('lab_test_config.yaml')
 %   results = run_lab_test('...', 'PatIDs', [1 2 5 6])  % subset
 %   results = run_lab_test('...', 'DryRun', true)        % parse only
 %   results = run_lab_test('...', 'IP', '10.0.0.5')      % override IP

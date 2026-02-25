@@ -1,0 +1,275 @@
+# Protocol Version 1 - G4.1 Experiment Patterns (16 conditions)
+#
+# Plays all 16 experiment patterns sequentially using Lisa's ProtocolRunner.
+# Each condition runs for 10 seconds in Mode 2 at 10 fps.
+#
+# Prerequisites:
+#   1. Run create_g41_experiment_patterns.m to generate patterns
+#   2. Run prepare_g41_experiment_sd.m to stage/copy to SD card
+#   3. Insert SD card into controller
+#
+# Usage:
+#   run_protocol('g41_experiment_protocol_v1.yaml', '10.102.40.209')
+#   run_protocol('g41_experiment_protocol_v1.yaml', '10.102.40.209', 'DryRun', true)
+
+version: 1
+
+# ============================================================================
+# EXPERIMENT METADATA
+# ============================================================================
+experiment_info:
+  name: "G4.1 Experiment Patterns - 16 Pattern Checkout"
+  date_created: "2026-02-25"
+  author: "Reiser Lab"
+  pattern_library:
+
+# ============================================================================
+# ARENA CONFIGURATION
+# ============================================================================
+arena_info:
+  num_rows: 2
+  num_cols: 12
+  generation: "G4.1"
+
+# ============================================================================
+# EXPERIMENT STRUCTURE
+# ============================================================================
+experiment_structure:
+  repetitions: 1
+  randomization:
+    enabled: false
+    seed: null
+    method: "block"
+
+# ============================================================================
+# PRETRIAL - Sanity check: all panels ON briefly
+# ============================================================================
+pretrial:
+  include: true
+  commands:
+    - type: "controller"
+      command_name: "allOn"
+
+    - type: "wait"
+      duration: 1
+
+    - type: "controller"
+      command_name: "allOff"
+
+    - type: "wait"
+      duration: 0.5
+
+# ============================================================================
+# BLOCK - 16 experiment pattern conditions
+# ============================================================================
+block:
+  conditions:
+    # --- GRATINGS ---
+
+    - id: "sq_grating_30deg_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 1
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sq_grating_30deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 2
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sq_grating_60deg_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 3
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sq_grating_60deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 4
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sine_grating_30deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 5
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sine_grating_60deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 6
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sine_grating_30deg_fine_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 7
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "sine_grating_60deg_fine_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 8
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    # --- COUNTERS ---
+
+    - id: "counter_0000_1000_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 9
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "counter_0000_1000_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 10
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    # --- LUMINANCE LEVELS ---
+
+    - id: "luminance_levels_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 11
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "luminance_levels_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 12
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    # --- ORIENTATION DIAGNOSTICS ---
+
+    - id: "top_on_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 13
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "left_on_gs2"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 14
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    # --- WEB ROUNDTRIP VALIDATION ---
+
+    - id: "web_sq_grating_30deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 15
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+    - id: "web_sine_grating_30deg_gs16"
+      commands:
+        - type: "controller"
+          command_name: "startG41Trial"
+          pattern_ID: 16
+          duration: 10
+          mode: 2
+          frame_index: 1
+          frame_rate: 10
+          gain: 0
+
+# ============================================================================
+# INTERTRIAL - 2 second pause with arena off between conditions
+# ============================================================================
+intertrial:
+  include: true
+  commands:
+    - type: "controller"
+      command_name: "allOff"
+
+    - type: "wait"
+      duration: 2
+
+# ============================================================================
+# POSTTRIAL - Turn off arena
+# ============================================================================
+posttrial:
+  include: true
+  commands:
+    - type: "controller"
+      command_name: "allOff"
+
+    - type: "wait"
+      duration: 1

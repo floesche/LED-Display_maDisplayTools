@@ -1,7 +1,7 @@
 %% test_g41_experiment_patterns.m — Mode 2 playback test for G4.1 experiment patterns
 %
 % Simple test script: plays each pattern for 10 seconds at 10 fps (Mode 2).
-% See also: run_lab_test('lab_test_g41_experiment.yaml') for YAML-driven version.
+% See also: run_protocol('g41_experiment_protocol_v1.yaml', ...) for protocol version.
 % Use after deploying patterns to SD card via prepare_g41_experiment_sd.m.
 %
 % SD card pattern mapping:
