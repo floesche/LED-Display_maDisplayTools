@@ -1906,3 +1906,48 @@ All 12 patterns played successfully on the G4.1 CW arena using Mode 2 (constant 
 - `utils/project_root.m` — **created**, cross-platform repo root detection
 - `patterns/G41_2x12_cw/experiment_v1/*` — 12 .pat + 12 .mat files
 - 19 files updated: hardcoded paths → `project_root()`, SD drive E → D
+
+---
+
+## Session: Feb 25-26, 2026 — G4.1 Lab Testing, Protocol Fixes, Config Audit
+
+### What was done
+
+**Protocol YAML & Lab Testing**
+- Tested 16-condition experiment protocol through Lisa's ProtocolRunner → CommandExecutor pipeline
+- Fixed protocol YAML path issue (needs `examples/` prefix for `run_protocol`)
+- Fixed missing `pattern` field in YAML conditions (CommandExecutor `required_fields` enforces it)
+- Removed confusing intermediate `lab_test_g41_experiment.yaml` (v2 format)
+- Protocol runs end-to-end on G4.1 hardware
+
+**SD Card Detection**
+- Windows: auto-scan D:-Z: for PATSD volume (was hardcoded drive letter)
+- macOS: auto-detect `/Volumes/PATSD`, fallback to manual path
+- Improved error messages with actionable fix instructions
+
+**Mode 3 Benchmarking**
+- Created `examples/benchmark_mode3_framerate.m` — rate sweep 10-100 Hz, controller round-trip comparison, raw command latency measurement
+
+**Arena Config Audit**
+- Complete audit of config redundancy across codebase
+- Updated `docs/arena_config_audit.md` with 3-phase consolidation plan
+- Sent to Lisa for discussion before implementation
+
+**Lisa Communication**
+- Slack draft with changes summary, questions about vestigial `pattern` field, arena config consolidation plan
+
+### Commits (main)
+
+- `3952a4e` Consolidate G4.1 experiment patterns: 16-pattern set with orientation diagnostics
+- `8625d99` Add experiment protocol v1 YAML for ProtocolRunner, remove intermediate lab_test YAML
+- `57e50e0` Improve SD card detection and fix protocol YAML usage path
+- `cf5e369` Fix protocol YAML: add required 'pattern' field to all conditions
+- `55cf9bd` Add Mode 3 frame rate benchmark script
+
+### Key Files Modified
+
+- `examples/g41_experiment_protocol_v1.yaml` — created, then fixed (path comment + pattern fields)
+- `tests/prepare_g41_experiment_sd.m` — Windows auto-scan, macOS volume detection
+- `utils/prepare_sd_card.m` — improved PATSD error messages
+- `examples/benchmark_mode3_framerate.m` — created, Mode 3 rate sweep + timing tests
+- `docs/arena_config_audit.md` — updated with 3-phase consolidation plan

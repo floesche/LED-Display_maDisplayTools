@@ -2,7 +2,7 @@
 
 > **Living Document** — Update this file as work progresses and priorities shift.
 >
-> **Last Updated**: 2026-02-14
+> **Last Updated**: 2026-02-26
 >
 > **Note**: Completed work and detailed session logs archived in `G4G6_ROADMAP_SESSIONS.md`.
 
@@ -28,8 +28,7 @@
 |--------|---------|--------|-------|
 | `feature/g6-tools` | Main dev branch, G6 tools | Active | Primary development, 202 files changed vs main |
 | `claude/switchable-tcp-controller-qQRKM` | TCP migration (pnet vs tcpclient) | Testing | Needs lab time |
-| `claude/bugfix-trialparams-executor-80r3o` | YAML experiment workflow fixes | PR open | Needs Lisa's review |
-| `yamlSystem` | Lisa's YAML experiment system | Active | Base branch for experiment workflow |
+| `claude/bugfix-trialparams-executor-80r3o` | YAML experiment workflow fixes | Merged | PR #19 merged Feb 20 |
 | `g41-controller-update` | Earlier G4.1 work, arena design | Stable | Port remaining items, then close |
 | `pcontrol` | PControl GUI work | TBD | Not yet started |
 
@@ -81,7 +80,7 @@ Build a clean, focused test suite that gates `feature/g6-tools` → `main` merge
 - [ ] Phase 4: Experiment workflow (coordinate with Lisa)
 - [ ] Phase 5: TCP migration (coordinate with Frank)
 - [ ] Close stale branches
-- [ ] Post-merge: Remove deprecated controller functions (`startG41Trial`, other unused legacy methods)
+- [x] Post-merge: Remove deprecated controller functions (`startG41Trial` deprecated in favor of `trialParams`)
 
 ---
 
@@ -123,35 +122,40 @@ These are started projects that need to be picked up and completed.
 
 ### 2. Experiment Workflow / Lisa's Code
 
-**Branch**: `claude/bugfix-trialparams-executor-80r3o` (PR open)
+**Branch**: `claude/bugfix-trialparams-executor-80r3o` → **Merged** (PR #19, Feb 20)
 
-**Status**: Bugs fixed, PR open for review. Arena config propagation needs discussion.
+**Status**: PR merged. 16-condition experiment protocol validated end-to-end on G4.1 hardware. Arena config consolidation plan sent to Lisa for review.
 
 **Current State**:
 - Fixed CommandExecutor trial execution, ProtocolRunner OutputDir, ScriptPlugin.close()
 - Comprehensive guide: `docs/experiment_pipeline_guide.md`
-
-**Open Question**: How should arena config propagate through the experiment system? (experiment YAML referencing config vs embedded vs runtime lookup from rig config)
+- 16-condition experiment protocol runs through ProtocolRunner → CommandExecutor → PanelsController
+- Arena config consolidation plan: `docs/arena_config_audit.md` (3-phase plan to drop V1, unify specs, extract helpers)
 
 **To Pick Up**:
-1. Get PR merged (needs Lisa's review)
-2. Design arena config integration with experiment system
-3. Rebuild test suite with simpler, practical YAML files reflecting real experiments
-4. Simplify YAML configuration structure for lab members
+1. Lisa review of config consolidation plan
+2. Implement Phase 1: drop V1 protocol format, standardize on V2 with rig-based IP resolution
+3. Remove vestigial `pattern` field from CommandExecutor `required_fields` (pending Lisa confirmation)
+4. Rebuild test suite with simpler, practical YAML files reflecting real experiments
 
-**Files**: `docs/experiment_pipeline_guide.md`, PR changes in branch
+**Files**: `docs/experiment_pipeline_guide.md`, `docs/arena_config_audit.md`, `examples/g41_experiment_protocol_v1.yaml`
 
 ---
 
 ### 3. Cross-Platform SD Card Workflow
 
-**Status**: Not started. See GitHub issue #16.
+**Status**: Partially addressed. See GitHub issue #16.
 
 **Problem**: We develop/test on Mac but run experiments on Windows. `prepare_sd_card.m` uses Windows-specific path handling.
 
+**Recent Progress** (Feb 25):
+- Windows: auto-scans D:-Z: for PATSD volume (was hardcoded drive letter)
+- macOS: auto-detects `/Volumes/PATSD`, fallback to manual path entry
+- Improved error messages with actionable fix instructions (rename card to PATSD)
+
 **To Pick Up**:
-1. Research macOS FAT32 formatting tools
-2. Test `prepare_sd_card.m` on macOS
+1. Full cross-platform testing on macOS
+2. Research macOS FAT32 formatting tools
 3. Consider if git-based experiment organization makes SD copying less critical
 
 ---
@@ -186,8 +190,7 @@ These are started projects that need to be picked up and completed.
 |--------|--------|--------|
 | `feature/g6-tools` | Active dev | Staged merge to main (Priority 3) |
 | `claude/switchable-tcp-controller-qQRKM` | Testing | Merge after TCP testing |
-| `claude/bugfix-trialparams-executor-80r3o` | PR open | Merge after Lisa's review |
-| `yamlSystem` | Lisa's branch | Coordinate with Lisa |
+| `claude/bugfix-trialparams-executor-80r3o` | Merged | PR #19, Feb 20 |
 | `g41-controller-update` | Stable | Port useful items, then close |
 | `pcontrol` | Not started | Keep for future PControl work |
 
@@ -320,6 +323,7 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
+| 2026-02-26 | **Arena Config Audit & Consolidation Plan** — Complete audit of config redundancy across codebase. Updated `docs/arena_config_audit.md` with 3-phase plan: (1) drop V1 protocols, standardize on V2 with rig-based IP resolution, (2) unify generation specs YAML↔MATLAB, (3) extract shared derived property computation. Sent to Lisa for review. Also: fixed SD card PATSD detection on Windows, fixed protocol YAML path/pattern field issues, created Mode 3 benchmark script. |
 | 2026-02-19 | **G4.1 Experiment Patterns & Lab Validation** — Generated 12 experiment patterns (gratings, counters, luminance sweeps) for G41_2x12_cw. Added `project_root()` for cross-platform paths. All patterns validated on hardware. SD card delivered to Peter. |
 | 2026-02-18 | **Lab Validation & Bug Fixes** — Validated G4.1 CW arena (GS2+GS16, MATLAB+web, Mode 3). Fixed GS16 command byte bug, `place_digit` return value bug, generator ES6 export stripping. Removed G41 CCW, added 15° angle offset to CW. Logged `angle_offset_deg` gap as known issue (grouped with observer position). Identified need for merge-gate test suite. |
 | 2026-02-14 | **MATLAB MCP Session Testing** — Empirically verified MCP server behavior (6 tests): persistent session, shared state across Task agents, no process accumulation. Documented findings in CLAUDE.md. |

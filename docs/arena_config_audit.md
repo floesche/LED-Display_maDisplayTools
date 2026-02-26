@@ -1,194 +1,162 @@
-# Arena Configuration Audit
+# Arena & Rig Configuration — Audit & Consolidation Plan
 
-**Date:** 2026-01-25
-**Purpose:** Document where arena_config/rig_config is NOT being used as the single source of truth
-
-## Overview
-
-The arena configuration system (`load_arena_config.m`, `load_rig_config.m`) was introduced to provide a centralized source of truth for panel specifications, arena geometry, and derived properties. This audit identifies areas where hardcoded values or duplicated specifications may cause inconsistencies.
-
-## Configuration System Summary
-
-### Proper Usage (Single Source of Truth)
-
-| File | Function | Status |
-|------|----------|--------|
-| `utils/load_arena_config.m` | Loads arena YAML, computes derived properties | ✓ Primary source |
-| `utils/load_rig_config.m` | Loads rig YAML, resolves arena reference | ✓ Uses load_arena_config |
-| `experimentExecution/ProtocolParser.m` | Parses protocol YAML, loads rig config | ✓ Uses load_rig_config (V2) |
+**Date:** 2026-02-26 (updated from 2026-01-25 original audit)
+**Author:** Michael Reiser
+**Status:** Proposal for discussion
 
 ---
 
-## Issues Found
+## Background
 
-### 1. Generation Specs Duplication (MEDIUM)
+With recent G4.1/G6 tool consolidation, arena and rig configurations are now standardized in YAML files under `configs/`. However, the same information (arena dimensions, generation specs, controller IPs) still appears in multiple places across the codebase. This document maps where configuration data lives, identifies redundancies, and proposes a consolidation strategy.
 
-**Problem:** Panel specifications (pixels per panel, panel dimensions) are defined in THREE places:
+### Progress Since Original Audit (Jan 25)
 
-| File | Lines | What's Duplicated |
-|------|-------|-------------------|
-| `utils/load_arena_config.m` | 136-180 | `gen_specs` struct with all generations |
-| `utils/load_rig_config.m` | 154-193 | `compute_arena_derived()` duplicates specs |
-| `utils/design_arena.m` | 314-385 | `get_panel_specs()` duplicates specs |
+Several issues from the original audit have been resolved:
+- `get_generation_specs.m` created as shared function (was recommendation #3)
+- `load_arena_config.m` and `load_rig_config.m` now call `get_generation_specs()` (was recommendation #4)
+- G6 tools parameterized via arena config (was recommendation #6)
+- `maDisplayTools.m` updated to accept generation parameter (was recommendation #7)
 
-**Values duplicated:**
-- G3: 8 pixels/panel, 32mm width
-- G4: 16 pixels/panel, 40.45mm width
-- G4.1: 16 pixels/panel, 40mm width
-- G6: 20 pixels/panel, 45.4mm width
-
-**Risk:** If panel specs change (e.g., new generation), all three files need updating.
-
-**Recommendation:** Create a shared `get_generation_specs.m` function that all three files call.
+Remaining issues are addressed in this updated plan.
 
 ---
 
-### 2. Protocol V1 Missing Derived Properties (HIGH)
+## Current Architecture
 
-**Problem:** Protocol V1 format (inline `arena_info`) does not compute derived properties.
+### Config Files (Single Sources of Truth)
 
-**Location:** `experimentExecution/ProtocolParser.m`, lines 636-640
+| Location | Contents | Notes |
+|----------|----------|-------|
+| `configs/arenas/*.yaml` (10 files) | Arena layout: generation, rows, cols, column_order, angle_offset | One file per physical arena configuration |
+| `configs/rigs/*.yaml` (6 files) | Controller IP/port, plugin settings, arena reference (file path) | One file per lab rig. Arena is a reference, not duplicated |
+| `configs/arena_registry/generations.yaml` | Panel hardware specs per generation (panel_size, led_type, panel_width_mm) | Shared by MATLAB and web tools |
+| `configs/arena_registry/index.yaml` | Arena ID assignments per generation | For pattern header metadata |
 
-```matlab
-% Version 1: inline arena_info
-protocol.arenaConfig = data.arena_info;
-protocol.rigConfig = [];
-protocol.derivedConfig = [];  % <-- EMPTY! No derived properties
+### Config Loading Chain
+
+```
+get_generation_specs(gen)     → panel hardware specs (pixels, physical dimensions)
+         |
+load_arena_config(path)       → arena YAML + computed derived properties
+         |
+load_rig_config(path)         → rig YAML + resolved arena + controller info
+         |
+ProtocolParser                → experiment YAML → resolved rig → arena → controller
+         |
+CommandExecutor               → executes trial commands (pattern_ID, mode, duration only)
 ```
 
-**Impact:** V1 protocols lack:
-- `pixels_per_panel`
-- `total_pixels_x`, `total_pixels_y`
-- `inner_radius_mm`
-- `panel_width_mm`, `panel_depth_mm`
-
-**Risk:** Code relying on `derivedConfig` will fail or behave incorrectly with V1 protocols.
-
-**Recommendation:**
-1. Add warning when parsing V1 protocols
-2. Compute derived properties for V1 by calling generation specs lookup
-3. Long-term: Deprecate V1 format entirely
+This chain is clean — each layer adds information, and `CommandExecutor` at the bottom only needs trial-level parameters. The issues are in how information enters this chain.
 
 ---
 
-### 3. G6 Module Hardcoded Dimensions (HIGH)
+## Identified Redundancies
 
-**Problem:** The G6 encoding tools hardcode 20x20 pixel dimensions.
+### 1. Protocol YAML Inlines Arena Dimensions (HIGH)
 
-**Locations:**
+Current V1 protocol YAMLs embed arena info directly:
 
-| File | Lines | Hardcoded Value |
-|------|-------|-----------------|
-| `g6/g6_encode_panel.m` | 31 | `assert(isequal(size(pixel_data), [20, 20])` |
-| `g6/g6_encode_panel.m` | 60-61 | `for row = 0:19`, `for col = 0:19` |
-| `g6/g6_encode_panel.m` | 65, 102 | `pixel_num = row_from_bottom * 20 + col` |
-| `g6/g6_save_pattern.m` | 148-149 | `total_rows = row_count * 20` |
-| `g6/g6_save_pattern.m` | 221, 223 | `row_start = panel_row * 20 + 1` |
-
-**Risk:** Low for now (G6 is always 20x20), but violates single source of truth principle.
-
-**Recommendation:**
-- Add `pixels_per_panel` to arena_config parameter
-- Use this value instead of hardcoded 20
-- Note: A TODO comment at lines 151-154 of `g6_save_pattern.m` already acknowledges this
-
----
-
-### 4. Legacy Pattern Tools Assume G4/G4.1 (HIGH)
-
-**Problem:** `maDisplayTools.m` assumes 16 pixels per panel.
-
-**Location:** `maDisplayTools.m`, lines 1088-1089
-
-```matlab
-dims.pixel_rows = RowN * 16;  % Hardcoded G4/G4.1 assumption
-dims.pixel_cols = ColN * 16;
-```
-
-**Impact:** Pattern dimension validation will be incorrect for:
-- G3 patterns (8 pixels per panel)
-- G6 patterns (20 pixels per panel)
-
-**Recommendation:**
-- Accept `generation` parameter or arena_config
-- Look up pixels_per_panel from generation specs
-- Or derive from pattern file header if available
-
----
-
-### 5. Experiment Template Shows V1 Pattern (LOW)
-
-**Problem:** `examples/experimentTemplate.yaml` uses V1 format with inline `arena_info`.
-
-**Current:**
 ```yaml
-template_version: 1
-
+# In g41_experiment_protocol_v1.yaml
 arena_info:
-  num_rows:
-  num_cols:
-  generation:
+  num_rows: 2
+  num_cols: 12
+  generation: "G4.1"
 ```
 
-**Recommended:**
+These values duplicate `configs/arenas/G41_2x12_cw.yaml`. If the arena config changes, the protocol silently becomes stale.
+
+V2 protocol format solves this by referencing a rig file instead:
+
 ```yaml
-version: 2
-
-rig: "configs/rigs/your_rig.yaml"
+rig: "../configs/rigs/test_rig_1.yaml"
 ```
 
-**Recommendation:** Update template to show V2 format as the recommended approach, with V1 as legacy option.
+The rig references the arena config, so there's a single chain with no duplication.
+
+### 2. Controller IP Specified Twice (MEDIUM)
+
+`run_protocol(yamlPath, arenaIP)` requires the controller IP as a function argument, even though V2 rig configs already contain `controller.host`. This means the IP is specified in two places: the rig YAML and the function call.
+
+Standalone test scripts (e.g., `test_mode3.m`) reasonably hardcode IPs — they aren't protocol-driven. But the experiment pipeline should resolve IP from the rig config by default.
+
+### 3. Generation Specs: Code vs YAML (MEDIUM)
+
+`get_generation_specs.m` returns panel specs (pixels_per_panel, panel_width_mm, pin layout, etc.) via a hardcoded switch statement. The same basic specs exist in `generations.yaml`. The two are maintained in parallel — neither reads from the other.
+
+Risk: If someone updates one but not the other, specs diverge silently.
+
+### 4. Derived Property Computation Duplicated (LOW)
+
+Both `load_arena_config.m` and `load_rig_config.m` independently compute the same derived properties (total_pixels, inner_radius, azimuth_coverage). Both call `get_generation_specs()` so the source data is consistent. The duplication is in computation code, not data — low risk but unnecessary.
+
+### 5. Pattern Header Arena Metadata (LOW — intentional)
+
+V2 pattern file headers store `generation_id` and `arena_id`. This duplicates arena config info but is intentional: patterns need to be self-describing for validation when loaded without config context. No change needed.
 
 ---
 
-## Summary Table
+## Proposed Consolidation
 
-| Issue | Severity | Fix Complexity | Recommendation |
-|-------|----------|----------------|----------------|
-| Generation specs duplication | Medium | Low | Create shared function |
-| V1 missing derived props | High | Medium | Compute for V1 or deprecate |
-| G6 hardcoded 20x20 | High | Medium | Parameterize from config |
-| Legacy tools assume G4 | High | Medium | Accept generation parameter |
-| Template shows V1 | Low | Low | Update example template |
+### Phase 1: Standardize on V2 Protocols + Rig-Based IP Resolution
+
+**What changes:**
+- Rewrite existing protocol YAMLs as V2 format (replace inline `arena_info` with `rig:` reference)
+- Remove V1 parsing from ProtocolParser (no backward compatibility needed — all V1 files are development artifacts)
+- Make controller IP optional in `run_protocol()` — resolve from rig config by default, accept explicit IP as override
+
+**Files affected:**
+- `examples/g41_experiment_protocol_v1.yaml` → rewrite as V2, rename
+- `experimentExecution/ProtocolParser.m` → remove V1 parsing path
+- `experimentExecution/run_protocol.m` → make `arenaIP` optional
+- `experimentExecution/ProtocolRunner.m` → pass controller IP from rig config
+- `examples/experimentTemplate.yaml` → update to V2 format
+
+**Result:** `run_protocol('examples/g41_experiment_protocol.yaml')` works with no extra arguments. The rig config provides the arena and controller IP. Explicit IP override still available for ad-hoc testing.
+
+### Phase 2: Unify Generation Specs
+
+**What changes:**
+- Extend `generations.yaml` to include all mechanical specs currently hardcoded in MATLAB (pin layout, depth, etc.)
+- Refactor `get_generation_specs.m` to read from YAML as primary source
+- Add validation test ensuring YAML and MATLAB agree
+
+**Files affected:**
+- `configs/arena_registry/generations.yaml` → add missing fields
+- `utils/get_generation_specs.m` → read from YAML
+
+**Result:** Single source of truth for all panel generation specifications. MATLAB reads from YAML instead of maintaining parallel hardcoded values.
+
+### Phase 3: Extract Shared Derived Property Computation
+
+**What changes:**
+- Extract `compute_arena_derived()` helper function
+- Both `load_arena_config.m` and `load_rig_config.m` call it instead of inline computation
+
+**Files affected:**
+- New: `utils/compute_arena_derived.m`
+- `utils/load_arena_config.m` → call helper
+- `utils/load_rig_config.m` → call helper
+
+**Result:** Derived property logic maintained in one place.
 
 ---
 
-## Recommended Actions
+## Priority & Effort
 
-### Immediate (Low Effort)
-1. Update `experimentTemplate.yaml` to show V2 format
-2. Add deprecation warning to V1 protocol parsing
+| Phase | Priority | Effort | Dependencies |
+|-------|----------|--------|--------------|
+| Phase 1: V2 protocols + IP resolution | High | 1 session | None |
+| Phase 2: Generation specs unification | Medium | 1-2 sessions | None |
+| Phase 3: Derived property helper | Low | 1 session | Phase 2 |
 
-### Short-term (Medium Effort)
-3. Create `utils/get_generation_specs.m` as shared function
-4. Update `load_arena_config.m`, `load_rig_config.m`, `design_arena.m` to use it
-5. Compute derived properties for V1 protocols
-
-### Long-term (Higher Effort)
-6. Parameterize G6 tools to accept `pixels_per_panel`
-7. Update `maDisplayTools.m` to accept generation parameter
-8. Consider deprecating Protocol V1 entirely
+Phase 1 can proceed immediately. Phase 2 is independent. Phase 3 is cleanup.
 
 ---
 
-## Files Requiring Updates
+## Questions
 
-| File | Changes Needed |
-|------|----------------|
-| `utils/get_generation_specs.m` | NEW - shared generation specs |
-| `utils/load_arena_config.m` | Use shared specs |
-| `utils/load_rig_config.m` | Use shared specs |
-| `utils/design_arena.m` | Use shared specs |
-| `experimentExecution/ProtocolParser.m` | Add V1 warning, compute derived |
-| `examples/experimentTemplate.yaml` | Update to V2 format |
-| `g6/g6_encode_panel.m` | Parameterize pixel count |
-| `g6/g6_save_pattern.m` | Parameterize pixel count |
-| `maDisplayTools.m` | Accept generation parameter |
+1. **Vestigial `pattern` field in CommandExecutor**: The `required_fields` list (line 120) includes `pattern` but `getPatternID` is commented out. Safe to remove, or is it used for logging?
 
----
-
-## Notes
-
-- The `testing/` scripts intentionally hardcode values for testing specific scenarios - this is acceptable.
-- Controller communication code (`g6/G6Controller.m`) is hardware-agnostic and doesn't need arena config.
-- The column order convention (CW/CCW) is properly implemented in `design_arena.m` as of 2026-01-25.
+2. **Rig config flow**: Currently the controller IP flows from rig config through ProtocolRunner to PanelsController. Is this working for your experiments, or should CommandExecutor accept a rig config directly?
