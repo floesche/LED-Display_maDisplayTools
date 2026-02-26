@@ -175,7 +175,10 @@ function cleanup(obj)                         % Cleanup/disconnection
   matlab:
     class: "BiasPlugin"
   config:
-    bias_executable: "C:/path/to/BIAS/test_gui.exe" # Required
+    bias_executable: 'C:/path/to/BIAS/test_gui.exe' # Required
+    ip: '127.0.0.1'                            # Optional but required to automatically connect.
+    port: 62222                                # Optional but required to automatically connect.
+    config_path: '.\bias_config_default1.json' # Optional but required for automatic initialization.
     log_file: "./logs/bias_timestamps.log"     # Optional - default is experiment_folder/logs/<plugin>_<timestamp>.log
     video_extension: ".avi"                    # Optional, default: .avi
     critical: true                             # Optional, default: true
