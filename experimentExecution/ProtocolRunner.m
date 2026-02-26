@@ -302,7 +302,7 @@ classdef ProtocolRunner < handle
             
             plugins = self.protocolData.plugins;
             for i = 1:length(plugins)
-                pluginDef = plugins(i);
+                pluginDef = plugins{i};
                 
                 try
                     self.pluginManager.initializePlugin(pluginDef);
