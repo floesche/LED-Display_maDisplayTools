@@ -1,7 +1,7 @@
 # Test Protocol for BiasPlugin and LEDBacklightPlugin
 # Uses dummy BiasControl class for testing without actual hardware
 
-version: 1
+version: 2
 
 experiment_info:
   name: "Test Bias Plugin"
@@ -9,10 +9,7 @@ experiment_info:
   author: "Lisa"
   pattern_library: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/examples/SimpleYamlExperimentDemo'
 
-arena_info:
-  num_rows: 2
-  num_cols: 12
-  generation: "G4.1"
+rig: './configs/rigs/test_rig_1.yaml'  #REPLACE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
