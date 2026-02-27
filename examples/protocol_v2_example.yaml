@@ -1,7 +1,7 @@
 # Protocol Version 1 - Complete Example
 # This example demonstrates all features of the protocol specification
 
-version: 1
+version: 2
 
 # ============================================================================
 # EXPERIMENT METADATA
@@ -15,16 +15,13 @@ experiment_info:
 # ============================================================================
 # ARENA CONFIGURATION
 # ============================================================================
-arena_info:
-  num_rows: 4
-  num_cols: 12
-  generation: "G4.1"
+rig: './configs/rigs/test_rig_1.yaml' # UPDATE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
 # ============================================================================
 plugins:
-  # Serial Device Plugin - Background illumination control
+  # Serial Device Plugin example - not real
   - name: "background_light"
     type: "serial_device"
     port: "/dev/ttyUSB0"
@@ -36,44 +33,26 @@ plugins:
       reset: "RESET"
       off: "OFF"
 
-  # Serial Device Plugin - LED controller
-  - name: "led_controller"
-    type: "class"
-    port: "/dev/ttyUSB1"
-    port_windows: "COM5"
-    port_posix: "/dev/ttyUSB1"
-    baudrate: 9600
-    commands:
-      on: "LED ON"
-      off: "LED OFF"
-      pulse: "PULSE 100"
 
   # Class Plugin - Camera/video capture system
-  - name: "simple_bias"
+  - name: "camera"
     type: "class"
     matlab:
       class: "maDisplayTools.plugins.SimpleBias"
-    python:
-      module: "pyDisplayTools.plugins.SimpleBias"
-      class: "SimpleBias"
-    config:
-      ip: "127.0.0.1"
-      port: 5020
-      config_path: './config/simple_bias_config.json'
-      bias_executable: 'path/to/executable.exe'
+    # python: WOULD USE THIS IF PYTHON CLASS
+    #   module: "pyDisplayTools.plugins.SimpleBias"
+    #   class: "SimpleBias"
+    # config:   # config established in rig yaml but can add here to override
+      
 
   # Class Plugin - Data acquisition system
-  - name: "daq_system"
+  - name: "temperature"
     type: "class"
     matlab:
       class: "maDisplayTools.plugins.DAQController"
-    python:
-      module: "pyDisplayTools.plugins.DAQController"
-      class: "DAQController"
     config:
       sample_rate: 1000
-      channels: ["ai0", "ai1", "ai2"]
-      device: "Dev1"
+      # This is needed because it's not included in the rig yaml
 
   # Script Plugin - Custom preprocessing
   - name: "preprocessing"
@@ -104,23 +83,20 @@ pretrial:
   commands:
     # Initialize camera system
     - type: "plugin"
-      plugin_name: "simple_bias"
+      plugin_name: "camera"
       command_name: "connect"
     
     - type: "plugin"
-      plugin_name: "simple_bias"
+      plugin_name: "camera"
       command_name: "initialize"
-      params:
-        resolution: [1920, 1080]
-        fps: 30
-    
+
     # Initialize DAQ system
     - type: "plugin"
-      plugin_name: "daq_system"
+      plugin_name: "temperature"
       command_name: "connect"
     
     - type: "plugin"
-      plugin_name: "daq_system"
+      plugin_name: "temperature"
       command_name: "configure"
       params:
         buffer_size: 10000
@@ -132,7 +108,7 @@ pretrial:
     
     # Wait for systems to stabilize
     - type: "wait"
-      duration: 1000  # 1 second
+      duration: 1  # 1 second
     
     # Run preprocessing script
     - type: "plugin"
@@ -140,17 +116,17 @@ pretrial:
     
     # Display a test pattern to verify arena
     - type: "controller"
-      command_name: "startG41Trial"
+      command_name: "trialParams"
       pattern: './patterns/pat0001_test_grid.pat'
       pattern_ID: 1
-      duration: 2000  # 2 seconds
+      duration: 2  # 2 seconds
       mode: 2  # position mode
       frame_index: 1
       frame_rate: 60
       gain: 0
     
     - type: "wait"
-      duration: 500  # 0.5 second pause
+      duration: .5  # 0.5 second pause
 
 # ============================================================================
 # BLOCK - Main experimental conditions
@@ -163,18 +139,18 @@ block:
       commands:
         # Start recording
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "startCapture"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "setVideoFile"
           params:
             filename: "vertical_bars_right.avi"
         
         # Start DAQ
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "startAcquisition"
         
         # Pulse LED to mark trial start
@@ -184,14 +160,14 @@ block:
         
         # Wait 50ms
         - type: "wait"
-          duration: 50
+          duration: .1
         
         # Display pattern
         - type: "controller"
-          command_name: "startG41Trial"
+          command_name: "trialParams"
           pattern: './patterns/pat0002_vertical_bars.pat'
           pattern_ID: 2
-          duration: 5000  # 5 seconds
+          duration: 5  # 5 seconds
           mode: 2  # closed-loop mode
           frame_index: 1
           frame_rate: 60
@@ -199,28 +175,28 @@ block:
         
         # Stop recording
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "stopAcquisition"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "stopCapture"
     
     # Condition 2: Horizontal bars moving up
     - id: "horizontal_bars_up"
       commands:
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "startCapture"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "setVideoFile"
           params:
             filename: "horizontal_bars_up.avi"
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "startAcquisition"
         
         - type: "plugin"
@@ -228,41 +204,41 @@ block:
           command_name: "pulse"
         
         - type: "wait"
-          duration: 50
+          duration: .1
         
         - type: "controller"
-          command_name: "startG41Trial"
+          command_name: "trialParams"
           pattern: './patterns/pat0003_horizontal_bars.pat'
           pattern_ID: 3
-          duration: 5000
+          duration: 5
           mode: 2
           frame_index: 1
           frame_rate: 60
           gain: -90
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "stopAcquisition"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "stopCapture"
     
     # Condition 3: Checkerboard pattern (static)
     - id: "checkerboard_static"
       commands:
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "startCapture"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "setVideoFile"
           params:
             filename: "checkerboard.avi"
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "startAcquisition"
         
         - type: "plugin"
@@ -270,41 +246,41 @@ block:
           command_name: "pulse"
         
         - type: "wait"
-          duration: 50
+          duration: .1
         
         - type: "controller"
-          command_name: "startG41Trial"
+          command_name: "trialParams"
           pattern: './patterns/pat0004_checkerboard.pat'
           pattern_ID: 4
-          duration: 3000  # 3 seconds
+          duration: 3  # 3 seconds
           mode: 2  # position mode (static)
           frame_index: 1
           frame_rate: 60
           gain: 0
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "stopAcquisition"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "stopCapture"
     
     # Condition 4: Expanding grating
     - id: "expanding_grating"
       commands:
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "startCapture"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "setVideoFile"
           params:
             filename: "expanding_grating.avi"
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "startAcquisition"
         
         - type: "plugin"
@@ -312,41 +288,41 @@ block:
           command_name: "pulse"
         
         - type: "wait"
-          duration: 50
+          duration: .1
         
         - type: "controller"
-          command_name: "startG41Trial"
+          command_name: "trialParams"
           pattern: './patterns/pat0005_expanding_grating.pat'
           pattern_ID: 5
-          duration: 4000  # 4 seconds
+          duration: 4  # 4 seconds
           mode: 2
           frame_index: 1
           frame_rate: 60
           gain: -45
 
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "stopAcquisition"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "stopCapture"
     
     # Condition 5: Dark (no stimulus)
     - id: "dark_control"
       commands:
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "startCapture"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "setVideoFile"
           params:
             filename: "dark_control.avi"
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "startAcquisition"
         
         - type: "plugin"
@@ -360,7 +336,7 @@ block:
         
         # Wait in darkness
         - type: "wait"
-          duration: 3000  # 3 seconds
+          duration: 3  # 3 seconds
         
         # Turn background back on
         - type: "plugin"
@@ -368,11 +344,11 @@ block:
           command_name: "activate"
         
         - type: "plugin"
-          plugin_name: "daq_system"
+          plugin_name: "temperature"
           command_name: "stopAcquisition"
         
         - type: "plugin"
-          plugin_name: "simple_bias"
+          plugin_name: "camera"
           command_name: "stopCapture"
 
 # ============================================================================
@@ -384,10 +360,10 @@ intertrial:
   commands:
     # Reset to baseline pattern
     - type: "controller"
-      command_name: "startG41Trial"
+      command_name: "trialParams"
       pattern: './patterns/pat0006_uniform_gray.pat'
       pattern_ID: 6
-      duration: 2000  # 2 second inter-trial interval
+      duration: 2  # 2 second inter-trial interval
       mode: 2
       frame_index: 1
       frame_rate: 60
@@ -399,7 +375,7 @@ intertrial:
     
     # Brief pause
     - type: "wait"
-      duration: 500  # 0.5 second
+      duration: .5 # 0.5 second
 
 # ============================================================================
 # POSTTRIAL - Execute once after all trials complete
@@ -410,11 +386,11 @@ posttrial:
   commands:
     # Stop all recording systems
     - type: "plugin"
-      plugin_name: "simple_bias"
+      plugin_name: "camera"
       command_name: "disconnect"
     
     - type: "plugin"
-      plugin_name: "daq_system"
+      plugin_name: "temperature"
       command_name: "disconnect"
     
     # Turn off hardware
@@ -428,10 +404,10 @@ posttrial:
     
     # Display completion message pattern
     - type: "controller"
-      command_name: "startG41Trial"
+      command_name: "trialParams"
       pattern: './patterns/pat0007_complete.pat'
       pattern_ID: 7
-      duration: 2000
+      duration: 2
       mode: 2
       frame_index: 1
       frame_rate: 60
@@ -439,7 +415,7 @@ posttrial:
     
     # Final wait before shutdown
     - type: "wait"
-      duration: 1000  # 1 second
+      duration: 1  # 1 second
 
 # ============================================================================
 # CONTROLLER COMMANDS REFERENCE
@@ -461,7 +437,7 @@ posttrial:
 # setColorDepth - change the arena's accepted grayscale value 
 #   Parameters: gs_val: 2 or 16
 #
-# startG41Trial - start displaying a trial on the G4.1 system
+# trialParams - start displaying a trial on the G4.1 system
 #   Parameters: mode: integer 2-4 
 #               patID: integer from 1 - number of patterns available  
 #               posX: integer, starting frame number  
