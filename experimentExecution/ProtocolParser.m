@@ -19,14 +19,12 @@ classdef ProtocolParser < handle
     end
 
     properties (Constant)
-        SUPPORTED_VERSIONS = [1, 2];  % Version 2 uses rig references
-        REQUIRED_YAML_SECTIONS_V1 = {'experiment_info', 'arena_info', 'experiment_structure', 'block'};
-        REQUIRED_YAML_SECTIONS_V2 = {'experiment_info', 'rig', 'experiment_structure', 'block'};
+        SUPPORTED_VERSIONS = [2];
+        REQUIRED_YAML_SECTIONS = {'experiment_info', 'rig', 'experiment_structure', 'block'};
         REQUIRED_ARENA_FIELDS = {'num_rows', 'num_cols', 'generation'};
-        SUPPORTED_GENERATIONS = {'G3', 'G4', 'G4.1', 'G6'};  % Added G3, removed G5
+        SUPPORTED_GENERATIONS = {'G3', 'G4', 'G4.1', 'G6'};
         SUPPORTED_RANDOMIZATION_METHODS = {'block'};
         SUPPORTED_PLUGIN_TYPES = {'serial_device', 'class', 'script'};
-
     end
     
     methods (Access = public)
@@ -48,40 +46,60 @@ classdef ProtocolParser < handle
         end
         
         function protocol = parse(self, filepath)
-            % Parse YAML protocol file
+            % Parse a Version 2 YAML protocol file
             %
             % Input Arguments:
-            %   filepath - Path to YAML protocol file
+            %   filepath - Path to YAML protocol file (version 2)
             %
             % Returns:
-            %   protocol - Struct containing all parsed protocol data
-            %   The struct fields are: 
-            %     - version:  Just a number keeping track of yaml versions
-            %     - experiment_info: a struct with three fields, "name",
-            %     "date_created", and "author" 
-            %     - arena_info: struct with three fields, "num_rows",
-            %     "num_cols", and "generation"
-            %     - plugins: cell array of structs. Each struct has a
-            %     "name" and "type" field plus additional fields depending
-            %     on type. Possible types are "serial_device", "class", and
-            %     "script"
-            %     - experiment_structure: struct with two fields,
-            %     "repetitions", and "randomization", which is another
-            %     small struct
-            %     - pretrial: struct with two fields, "include" (1 for yes,
-            %     0 for no), and "commands", a cell array of structs - one
-            %     for each command. 
-            %     - block: has just one field, "conditions", which is a
-            %     struct array. So rawData.block.conditions(1) has two
-            %     fields, "id", and "commands", a  cell array of structs
-            %     - intertrial: struct with two fields, "include", and
-            %     "commands", a cell array of structs
-            %     - posttrial: struct with two fields, "include" and
-            %     "commands", a cell array of structs
-
+            %   protocol - Struct containing all parsed protocol data.
+            %              Fields:
+            %     .version             - Protocol version number (2)
+            %     .filepath            - Path to the protocol YAML file
+            %     .experimentInfo      - Struct: name, date_created, author,
+            %                           pattern_library
+            %     .rigConfig           - Full resolved rig config struct
+            %                           (from load_rig_config). Contains:
+            %                             .name, .description
+            %                             .arena    - arena fields (see below)
+            %                             .derived  - computed arena properties
+            %                             .controller.host / .port
+            %                             .plugins  - rig-level plugin hardware
+            %                                         configs, keyed by name
+            %     .arenaConfig         - Shortcut to rigConfig.arena. Fields:
+            %                             .generation, .num_rows, .num_cols,
+            %                             .column_order, .orientation,
+            %                             .angle_offset_deg,
+            %                             .columns_installed (null = all)
+            %     .derivedConfig       - Shortcut to rigConfig.derived. Fields:
+            %                             .pixels_per_panel, .total_pixels_x,
+            %                             .total_pixels_y, .panel_width_mm,
+            %                             .inner_radius_mm,
+            %                             .num_columns_installed,
+            %                             .azimuth_coverage_deg
+            %     .controllerConfig    - Shortcut to rigConfig.controller.
+            %                           Fields: .host (IP string), .port
+            %     .rigFilepath         - Resolved path to the rig YAML file
+            %     .arenaFilepath       - Resolved path to the arena YAML file
+            %     .plugins             - Cell array of plugin definition structs.
+            %                           Each struct has .name, .type, and
+            %                           type-specific fields (.matlab.class,
+            %                           .script_path, etc.). The .config field
+            %                           is populated by merging the rig YAML's
+            %                           plugin hardware settings with any config
+            %                           defined in the experiment YAML
+            %                           (experiment values win on conflict).
+            %     .experimentStructure - Struct: .repetitions, .randomization
+            %     .pretrialCommands    - Cell array of command structs, or []
+            %     .blockConditions     - Struct array. Each element has .id
+            %                           and .commands (cell array of structs)
+            %     .intertrialCommands  - Cell array of command structs, or []
+            %     .posttrialCommands   - Cell array of command structs, or []
             %
             % Example:
-            %   protocol = parser.parse('./protocols/experiment.yaml');
+            %   protocol = parser.parse('./experiments/exp001/protocol.yaml');
+            %   fprintf('Rig: %s\n', protocol.rigConfig.name);
+            %   fprintf('Controller IP: %s\n', protocol.controllerConfig.host);
             
             self.filepath = filepath;
             
@@ -146,30 +164,24 @@ classdef ProtocolParser < handle
             %
             % Input Arguments:
             %   data - Raw parsed YAML data
-            
+
             % Check version field exists
             if ~isfield(data, 'version')
                 self.throwValidationError('Protocol missing required "version" field');
             end
-            
+
             % Check version is supported
             if ~ismember(data.version, self.SUPPORTED_VERSIONS)
-                self.throwValidationError(...
-                    'Unsupported protocol version: %d (supported versions: %s)', ...
-                    data.version, ...
-                    mat2str(self.SUPPORTED_VERSIONS));
+                self.throwValidationError(['Unsupported protocol version: %d\n' ...
+                    'Only version 2 is supported.\n' ...
+                    'If this is a version 1 protocol, migrate it by replacing\n' ...
+                    '"arena_info" with a rig reference: rig: "path/to/rig.yaml"'], ...
+                    data.version);
             end
 
-            % Determine required sections based on version
-            if data.version >= 2
-                required_sections = self.REQUIRED_YAML_SECTIONS_V2;
-            else
-                required_sections = self.REQUIRED_YAML_SECTIONS_V1;
-            end
-
-            % Check major sections exist
-            for i = 1:length(required_sections)
-                section = required_sections{i};
+            % Check all required top-level sections exist
+            for i = 1:length(self.REQUIRED_YAML_SECTIONS)
+                section = self.REQUIRED_YAML_SECTIONS{i};
                 if ~isfield(data, section)
                     self.throwValidationError('Protocol missing required "%s" section', section);
                 end
@@ -178,26 +190,20 @@ classdef ProtocolParser < handle
             % Validate experiment_info
             self.validateExperimentInfo(data.experiment_info);
 
-            % Validate arena/rig configuration based on version
-            if data.version >= 2
-                % Version 2+: uses rig reference (which contains arena)
-                self.validateRigReference(data.rig);
-            else
-                % Version 1: uses inline arena_info
-                self.validateArenaInfo(data.arena_info);
-            end
-            
+            % Validate rig reference (resolves rig and arena files)
+            self.validateRigReference(data.rig);
+
             % Validate experiment_structure
             self.validateExperimentStructure(data.experiment_structure);
-            
+
             % Validate plugins (if present)
             if isfield(data, 'plugins')
                 self.validatePlugins(data.plugins);
             end
-            
+
             % Validate trial sections
             self.validateTrialSections(data);
-            
+
             if self.verbose
                 fprintf('  Protocol validation passed\n');
             end
@@ -215,34 +221,24 @@ classdef ProtocolParser < handle
             end
         end
         
-        function validateArenaInfo(self, arenaInfo)
-            % Validate arena_info section (Version 1 format)
+        function validateSerialPlugin(self, plugin)
+            % Validate serial_device plugin
 
-            % Check required fields
-            for i = 1:length(self.REQUIRED_ARENA_FIELDS)
-                field = self.REQUIRED_ARENA_FIELDS{i};
-                if ~isfield(arenaInfo, field)
-                    self.throwValidationError('arena_info missing required "%s" field', field);
+            requiredFields = {'baudrate', 'commands'};
+            for i = 1:length(requiredFields)
+                field = requiredFields{i};
+                if ~isfield(plugin, field)
+                    self.throwValidationError('Serial plugin "%s" missing required "%s" field', ...
+                                             plugin.name, field);
                 end
             end
 
-            % Validate num_rows
-            if ~isnumeric(arenaInfo.num_rows) || arenaInfo.num_rows < 1
-                self.throwValidationError('arena_info.num_rows must be a positive integer');
-            end
-
-            % Validate num_cols
-            if ~isnumeric(arenaInfo.num_cols) || arenaInfo.num_cols < 1
-                self.throwValidationError('arena_info.num_cols must be a positive integer');
-            end
-
-            % Validate generation
-            if strcmpi(arenaInfo.generation, 'G5')
-                self.throwValidationError('G5 is deprecated. Use G6 for 20x20 pixel panels.');
-            end
-            if ~ismember(arenaInfo.generation, self.SUPPORTED_GENERATIONS)
-                self.throwValidationError('arena_info.generation must be one of: %s', ...
-                                         strjoin(self.SUPPORTED_GENERATIONS, ', '));
+            % Must have at least one port field (generic, Windows, or POSIX)
+            if ~isfield(plugin, 'port') && ...
+               ~isfield(plugin, 'port_windows') && ...
+               ~isfield(plugin, 'port_posix')
+                self.throwValidationError(['Serial plugin "%s" must define at least one port field ' ...
+                    '(port, port_windows, or port_posix)'], plugin.name);
             end
         end
 
@@ -388,25 +384,6 @@ classdef ProtocolParser < handle
                     case 'script'
                         self.validateScriptPlugin(plugin);
                 end
-            end
-        end
-        
-        function validateSerialPlugin(self, plugin)
-            % Validate serial_device plugin
-            
-            requiredFields = {'baudrate', 'commands'};
-            for i = 1:length(requiredFields)
-                field = requiredFields{i};
-                if ~isfield(plugin, field)
-                    self.throwValidationError('Serial plugin "%s" missing required "%s" field', ...
-                                             plugin.name, field);
-                end
-            end
-            
-            % Must have at least one port defined
-            if ~isfield(plugin, 'port_windows') && ~isfield(plugin, 'port_posix')
-                self.throwValidationError('Serial plugin "%s" must define port_windows and/or port_posix', ...
-                                         plugin.name);
             end
         end
         
@@ -608,47 +585,51 @@ classdef ProtocolParser < handle
             %
             % Returns:
             %   protocol - Struct with organized protocol data
-            
+
             protocol = struct();
-            
+
             % Store version
             protocol.version = data.version;
 
             % Extract experiment metadata
             protocol.experimentInfo = data.experiment_info;
 
-            % Extract arena/rig configuration based on version
-            if data.version >= 2
-                % Version 2+: load rig config (which includes arena)
-                rig_path = self.resolveRelativePath(data.rig);
-                rig_config = load_rig_config(rig_path);
+            % Load rig config (resolves arena config inside)
+            rig_path = self.resolveRelativePath(data.rig);
+            rig_config = load_rig_config(rig_path);
 
-                protocol.rigConfig = rig_config;
-                protocol.arenaConfig = rig_config.arena;
-                protocol.derivedConfig = rig_config.derived;
-                protocol.rigFilepath = rig_path;
-                protocol.arenaFilepath = rig_config.arena_file;
+            protocol.rigConfig     = rig_config;
+            protocol.arenaConfig   = rig_config.arena;
+            protocol.derivedConfig = rig_config.derived;
+            protocol.rigFilepath   = rig_path;
+            protocol.arenaFilepath = rig_config.arena_file;
 
-                if self.verbose
-                    fprintf('  Loaded rig: %s\n', rig_config.name);
-                end
+            % Convenience shortcut so callers don't have to dig into rigConfig
+            if isfield(rig_config, 'controller')
+                protocol.controllerConfig = rig_config.controller;
             else
-                % Version 1: inline arena_info
-                protocol.arenaConfig = data.arena_info;
-                protocol.rigConfig = [];
-                protocol.derivedConfig = [];
+                protocol.controllerConfig = struct('host', '', 'port', 62222);
             end
-            
+
+            if self.verbose
+                fprintf('  Loaded rig: %s\n', rig_config.name);
+                fprintf('  Controller: %s:%d\n', protocol.controllerConfig.host, ...
+                        protocol.controllerConfig.port);
+            end
+
             % Extract experiment structure
             protocol.experimentStructure = data.experiment_structure;
-            
-            % Extract plugins (if present)
+
+            % Extract plugins (if present) and merge rig-level hardware config
             if isfield(data, 'plugins')
-                protocol.plugins = data.plugins;
-                % Normalize to cell array (yamlread returns struct array for single-item lists)
-                if isstruct(protocol.plugins) && ~iscell(protocol.plugins)
-                    protocol.plugins = arrayfun(@(s) s, protocol.plugins, 'UniformOutput', false);
+                exp_plugins = data.plugins;
+                % Normalize to cell array (yamlread may return struct array)
+                if isstruct(exp_plugins) && ~iscell(exp_plugins)
+                    exp_plugins = arrayfun(@(s) s, exp_plugins, 'UniformOutput', false);
                 end
+                % Merge rig plugin hardware config into each plugin definition
+                exp_plugins = self.mergeRigPluginConfig(exp_plugins, rig_config.plugins);
+                protocol.plugins = exp_plugins;
                 if self.verbose
                     fprintf('  Found %d plugin definitions\n', length(protocol.plugins));
                 end
@@ -658,7 +639,7 @@ classdef ProtocolParser < handle
                     fprintf('  No plugins defined\n');
                 end
             end
-            
+
             % Extract pretrial commands
             protocol.pretrialCommands = self.extractOptionalSection(data, 'pretrial');
             if isstruct(protocol.pretrialCommands) && ~iscell(protocol.pretrialCommands)
@@ -671,19 +652,20 @@ classdef ProtocolParser < handle
                     fprintf('  Pretrial: %d commands\n', length(protocol.pretrialCommands));
                 end
             end
-            
+
             % Extract block conditions
             protocol.blockConditions = data.block.conditions;
             for cond = 1:length(protocol.blockConditions)
                 if isstruct(protocol.blockConditions(cond).commands) && ...
                         ~iscell(protocol.blockConditions(cond).commands)
-                    protocol.blockConditions(cond).commands = arrayfun(@(s) s, protocol.blockConditions(cond).commands, 'UniformOutput', false);
+                    protocol.blockConditions(cond).commands = arrayfun(@(s) s, ...
+                        protocol.blockConditions(cond).commands, 'UniformOutput', false);
                 end
             end
             if self.verbose
                 fprintf('  Block: %d conditions\n', length(protocol.blockConditions));
             end
-            
+
             % Extract intertrial commands
             protocol.intertrialCommands = self.extractOptionalSection(data, 'intertrial');
             if isstruct(protocol.intertrialCommands) && ~iscell(protocol.intertrialCommands)
@@ -696,7 +678,7 @@ classdef ProtocolParser < handle
                     fprintf('  Intertrial: %d commands\n', length(protocol.intertrialCommands));
                 end
             end
-            
+
             % Extract posttrial commands
             protocol.posttrialCommands = self.extractOptionalSection(data, 'posttrial');
             if isstruct(protocol.posttrialCommands) && ~iscell(protocol.posttrialCommands)
@@ -711,6 +693,73 @@ classdef ProtocolParser < handle
             end
         end
         
+        function exp_plugins = mergeRigPluginConfig(self, exp_plugins, rig_plugins)
+            % Merge rig-level plugin hardware config into experiment plugin definitions
+            %
+            % The rig YAML stores hardware-specific settings (IP, port, executable
+            % paths, etc.) keyed by plugin name. The experiment YAML stores
+            % behavioural/class definitions. This method combines them so that each
+            % plugin definition passed to PluginManager is fully populated.
+            %
+            % Merge rules:
+            %   - Rig fields are written into plugin.config
+            %   - If the experiment YAML already has a matching field in plugin.config,
+            %     the experiment value is kept (experiment wins on conflict)
+            %   - The 'enabled' field from the rig is skipped (rig-level metadata only)
+            %
+            % Input Arguments:
+            %   exp_plugins - Cell array of plugin structs from experiment YAML
+            %   rig_plugins - Struct of plugin hardware configs from rig YAML,
+            %                 keyed by plugin name (e.g., rig_plugins.camera)
+            %
+            % Returns:
+            %   exp_plugins - Same cell array with .config fields augmented
+
+            if isempty(rig_plugins) || ~isstruct(rig_plugins)
+                return;
+            end
+
+            rig_plugin_names = fieldnames(rig_plugins);
+
+            for i = 1:length(exp_plugins)
+                plugin = exp_plugins{i};
+                plugin_name = plugin.name;
+
+                if ~ismember(plugin_name, rig_plugin_names)
+                    continue;  % No rig config for this plugin — leave as-is
+                end
+
+                rig_plugin = rig_plugins.(plugin_name);
+                if ~isstruct(rig_plugin)
+                    continue;
+                end
+
+                % Ensure plugin.config exists
+                if ~isfield(plugin, 'config') || isempty(plugin.config)
+                    plugin.config = struct();
+                end
+
+                % Copy rig fields into plugin.config, skipping 'enabled' and
+                % any field already specified in the experiment YAML
+                rig_fields = fieldnames(rig_plugin);
+                for j = 1:length(rig_fields)
+                    field = rig_fields{j};
+                    if strcmp(field, 'enabled')
+                        continue;
+                    end
+                    if ~isfield(plugin.config, field)
+                        plugin.config.(field) = rig_plugin.(field);
+                    end
+                end
+
+                exp_plugins{i} = plugin;
+
+                if self.verbose
+                    fprintf('  Merged rig hardware config into plugin: %s\n', plugin_name);
+                end
+            end
+        end
+
         function commands = extractOptionalSection(self, data, sectionName)
             % Extract commands from optional section
             %
@@ -729,21 +778,21 @@ classdef ProtocolParser < handle
         
         function printProtocolSummary(self, protocol)
             % Print summary of parsed protocol
-            
+
             fprintf('\n=== Protocol Summary ===\n');
             fprintf('Experiment: %s\n', protocol.experimentInfo.name);
-            
+
             if isfield(protocol.experimentInfo, 'author')
                 fprintf('Author: %s\n', protocol.experimentInfo.author);
             end
-            
+
             if isfield(protocol.experimentInfo, 'date_created')
                 fprintf('Date Created: %s\n', protocol.experimentInfo.date_created);
             end
-            
-            if isfield(protocol, 'rigConfig') && ~isempty(protocol.rigConfig)
-                fprintf('Rig: %s\n', protocol.rigConfig.name);
-            end
+
+            fprintf('Rig: %s\n', protocol.rigConfig.name);
+            fprintf('Controller: %s:%d\n', protocol.controllerConfig.host, ...
+                    protocol.controllerConfig.port);
             fprintf('Arena: %dx%d panels (%s)\n', ...
                     protocol.arenaConfig.num_rows, ...
                     protocol.arenaConfig.num_cols, ...
@@ -751,9 +800,14 @@ classdef ProtocolParser < handle
             if isfield(protocol.arenaConfig, 'column_order')
                 fprintf('Column order: %s\n', protocol.arenaConfig.column_order);
             end
-            
+            if isfield(protocol.derivedConfig, 'total_pixels_x')
+                fprintf('Pattern dimensions: %dx%d px\n', ...
+                        protocol.derivedConfig.total_pixels_x, ...
+                        protocol.derivedConfig.total_pixels_y);
+            end
+
             fprintf('Repetitions: %d\n', protocol.experimentStructure.repetitions);
-            
+
             if isfield(protocol.experimentStructure, 'randomization') && ...
                isfield(protocol.experimentStructure.randomization, 'enabled')
                 if protocol.experimentStructure.randomization.enabled
@@ -763,7 +817,7 @@ classdef ProtocolParser < handle
                     fprintf('Randomization: disabled\n');
                 end
             end
-            
+
             total_trials = ProtocolParser.get_total_trials(protocol);
 
             fprintf('Conditions: %d\n', length(protocol.blockConditions));
