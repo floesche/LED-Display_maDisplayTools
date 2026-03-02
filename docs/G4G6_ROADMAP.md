@@ -2,7 +2,7 @@
 
 > **Living Document** — Update this file as work progresses and priorities shift.
 >
-> **Last Updated**: 2026-02-26
+> **Last Updated**: 2026-03-01
 >
 > **Note**: Completed work and detailed session logs archived in `G4G6_ROADMAP_SESSIONS.md`.
 
@@ -144,19 +144,23 @@ These are started projects that need to be picked up and completed.
 
 ### 3. Cross-Platform SD Card Workflow
 
-**Status**: Partially addressed. See GitHub issue #16.
+**Status**: Functionally complete. Lab validation pending (scheduled Mar 2). See GitHub issue #16.
 
 **Problem**: We develop/test on Mac but run experiments on Windows. `prepare_sd_card.m` uses Windows-specific path handling.
 
-**Recent Progress** (Feb 25):
-- Windows: auto-scans D:-Z: for PATSD volume (was hardcoded drive letter)
-- macOS: auto-detects `/Volumes/PATSD`, fallback to manual path entry
-- Improved error messages with actionable fix instructions (rename card to PATSD)
+**Completed** (Feb 25 → Mar 1):
+- `detect_sd_card.m` — cross-platform auto-detection (Windows D:-Z:, Mac /Volumes, Linux /media+/mnt)
+- `prepare_sd_card_crossplatform.m` — Mac `diskutil eraseDisk` formatting, staging → ordered copy → manifest
+- `ValidateDriveName` works on Mac (extracts volume name from mount path via `fileparts`)
+- macOS dot-file fix: `._*` AppleDouble resource fork files auto-deleted after copy (prevents G4.1 dirIndex corruption)
+- Verification count filters out `._*` files as safety net
+- `test_sd_card_deployment.m` — automated test suite (~15 tests, supports real SD card via `UseRealSD` flag)
+- Reference pattern set: 16 patterns at `patterns/reference/G41_2x12_cw/` (standard test set)
+- 5 obsolete test/example scripts removed (replaced by proper test suite)
 
 **To Pick Up**:
-1. Full cross-platform testing on macOS
-2. Research macOS FAT32 formatting tools
-3. Consider if git-based experiment organization makes SD copying less critical
+1. **Lab validation (Mar 2)**: Run `test_sd_card_deployment('UseRealSD', true)`, then verify patterns on G4.1 controller → see `docs/lab_test_plan_2026-03-02.md`
+2. After lab sign-off: close GitHub #16, merge SD card phase into Priority 4 Phase 3
 
 ---
 
@@ -205,9 +209,11 @@ These are started projects that need to be picked up and completed.
 
 ### Remaining Validation Work
 
-**Round-trip testing** (8/8 patterns passing):
+**Round-trip testing** (8/8 MATLAB patterns + 49/49 web CI checks passing):
 - [x] G4, G4.1, G6 × GS2/GS16 × full/partial arenas — pixel-exact match
 - [x] V2 header metadata round-trip
+- [x] Web → MATLAB protocol YAML roundtrip (28/28 fields validated)
+- [x] CI workflow: `validate-protocol-roundtrip.yml` (49 checks, runs on push)
 - [ ] Raw header byte comparison: web and MATLAB encoders must produce byte-identical file headers
 - [ ] Expand to 100+ patterns (edge, starfield, rotation, expansion, translation — blocked on needing more pattern types in web generator)
 - [ ] Arena config loading verification (path-based, filename prefix detection)
@@ -229,7 +235,7 @@ See CLAUDE.md section 6 for test protocol and CI/CD trigger table.
 
 ### High Priority
 
-1. **Cross-Platform SD Card Workflow** — macOS support for `prepare_sd_card.m` (#16)
+1. **Cross-Platform SD Card Workflow** — macOS support for `prepare_sd_card.m` (#16) — ⚡ Nearly complete, lab validation Mar 2
 2. **Observer Position & Arena Pitch** — Cross-repo feature (#15, webDisplayTools #40)
 
 ### Medium Priority
@@ -237,7 +243,7 @@ See CLAUDE.md section 6 for test protocol and CI/CD trigger table.
 3. **New Pattern Types** — Looming (expanding disc, r/v loom) and reverse-phi (needs literature-based reimplementation). See maDisplayTools #13.
 4. **GitHub for Experiment Organization** — Version control for experiment configs, pattern library management
 5. **Plugin System Foundation** — LEDController.m, BIAS camera, NI DAQ temperature logging
-6. **Experiment Designer (Web)** — YAML-based experiment config, trial sequence builder
+6. **Experiment Designer (Web)** — YAML-based experiment config, trial sequence builder — ✅ v0.2 deployed, multi-condition import fixed, roundtrip CI (49 checks)
 
 ### Low Priority (Future)
 
@@ -323,6 +329,8 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
+| 2026-03-01 | **macOS Dot-File Fix & SD Test Suite** — Fixed `._*` AppleDouble resource fork files corrupting FAT32 dirIndex on Mac (auto-deleted after copy, filtered from verification). Created `test_sd_card_deployment.m` (automated, ~15 tests, supports real SD via `UseRealSD`). Removed 5 obsolete test/example scripts. Lab test plan for Mar 2. |
+| 2026-02-28 | **Web Protocol Roundtrip CI + Mac SD Card Support** — Web import fix (simpleYAMLParse missing braces, v0.2). New CI workflow `validate-protocol-roundtrip.yml` (49 checks). MATLAB validator `validate_web_protocol_roundtrip.m` (28/28). Mac SD card: `detect_sd_card.m`, `diskutil` formatting, `ValidateDriveName` on Mac via `fileparts()`. Quickstart CCW arena fix. |
 | 2026-02-26 | **Arena Config Audit & Consolidation Plan** — Complete audit of config redundancy across codebase. Updated `docs/arena_config_audit.md` with 3-phase plan: (1) drop V1 protocols, standardize on V2 with rig-based IP resolution, (2) unify generation specs YAML↔MATLAB, (3) extract shared derived property computation. Sent to Lisa for review. Also: fixed SD card PATSD detection on Windows, fixed protocol YAML path/pattern field issues, created Mode 3 benchmark script. |
 | 2026-02-19 | **G4.1 Experiment Patterns & Lab Validation** — Generated 12 experiment patterns (gratings, counters, luminance sweeps) for G41_2x12_cw. Added `project_root()` for cross-platform paths. All patterns validated on hardware. SD card delivered to Peter. |
 | 2026-02-18 | **Lab Validation & Bug Fixes** — Validated G4.1 CW arena (GS2+GS16, MATLAB+web, Mode 3). Fixed GS16 command byte bug, `place_digit` return value bug, generator ES6 export stripping. Removed G41 CCW, added 15° angle offset to CW. Logged `angle_offset_deg` gap as known issue (grouped with observer position). Identified need for merge-gate test suite. |

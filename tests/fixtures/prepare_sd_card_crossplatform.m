@@ -15,7 +15,10 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
 %                       Windows: Drive letter (e.g., 'E' or 'E:')
 %                       Mac/Linux: Absolute path (e.g., '/Volumes/SD_CARD' or '/tmp/fake_sd')
 %       options       - Name-value pairs:
-%           'Format' (false)          - Format SD card before copying (Windows only)
+%           'Format' (false)          - Format SD card before copying
+%                                       Windows: format X: /FS:FAT32 /V:PATSD /Q /Y
+%                                       Mac: diskutil eraseDisk FAT32 PATSD MBRFormat diskN
+%                                       (prompts for confirmation on Mac before erasing)
 %           'UsePatternFolder' (true) - Copy patterns to /patterns subfolder
 %           'StagingDir' ('')         - Custom staging directory (default: tempdir/sd_staging)
 %           'ValidateDriveName' (true)- Require SD card named PATSD (Windows only)
@@ -56,8 +59,11 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
 %       - Same file can appear multiple times with different IDs
 %       - Lowercase filenames: pat0001.pat, pat0002.pat, etc.
 %       - MANIFEST files written AFTER patterns for correct FAT32 dirIndex
-%       - Format option only works on Windows
-%       - ValidateDriveName option only applies to Windows
+%       - Format option: Windows (auto), Mac (with confirmation prompt)
+%       - ValidateDriveName: checks 'PATSD' on both Windows (vol) and Mac (mount path)
+%       - On Mac, formatting clears the FAT table, ensuring reliable dirIndex order
+%       - macOS dot-files (._*) are automatically cleaned from FAT32 volumes
+%         (AppleDouble resource forks corrupt G4.1 controller dirIndex ordering)
 %
 %   See also: prepare_sd_card, deploy_experiments_to_sd
 
@@ -127,7 +133,7 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
         return;
     end
     
-    %% Validate SD card name (Windows only)
+    %% Validate SD card name
     if is_windows && is_drive_letter && options.ValidateDriveName
         try
             [~, vol_name] = system(['vol ' sd_drive ':']);
@@ -140,9 +146,14 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
             mapping.error = sprintf('Could not validate SD card name: %s', ME.message);
             return;
         end
-    elseif ~is_windows && options.ValidateDriveName
-        % ValidateDriveName requested but not on Windows - just warn
-        fprintf('Note: ValidateDriveName only applies to Windows drive letters\n');
+    elseif ismac && ~is_drive_letter && options.ValidateDriveName
+        % Mac: volume name is the last component of the mount path
+        [~, vol_name] = fileparts(sd_root);  % /Volumes/PATSD → 'PATSD'
+        if ~strcmpi(vol_name, 'PATSD')
+            mapping.error = sprintf('SD card is not named PATSD (found: "%s" at %s).\nRename in Disk Utility, or use ''ValidateDriveName'', false to skip.', vol_name, sd_root);
+            return;
+        end
+        fprintf('✓ SD card validated: PATSD\n');
     end
     
     %% Validate pattern count
@@ -280,32 +291,92 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
     
     %% Format or clear SD card
     fprintf('\nPreparing SD card (%s)...\n', sd_root);
-    
+
+    did_format = false;
+
     if options.Format
-        if ~is_windows || ~is_drive_letter
-            % Format only works on Windows with drive letters
-            fprintf('  Warning: Format option only works on Windows with drive letters. Skipping format.\n');
-            % Continue with manual cleanup instead
-            options.Format = false;
+        if is_windows && is_drive_letter
+            % Windows: format with built-in format command
+            fprintf('  Formatting as FAT32 (PATSD)...\n');
+            [status, fmt_result] = system(sprintf('format %s: /FS:FAT32 /V:PATSD /Q /Y', sd_drive));
+            if status ~= 0
+                mapping.error = sprintf('Format failed: %s', fmt_result);
+                return;
+            end
+            fprintf('  ✓ SD card formatted\n');
+            did_format = true;
+
+            % Create patterns folder if needed
+            if options.UsePatternFolder
+                mkdir(target_dir);
+                fprintf('  ✓ Created patterns folder\n');
+            end
+
+        elseif ismac && ~is_drive_letter
+            % Mac: format with diskutil eraseDisk
+            % Detect device identifier
+            [~, info] = system(sprintf('diskutil info "%s" 2>/dev/null', sd_root));
+            dev_match = regexp(info, 'Device Identifier:\s+(disk\d+)', 'tokens');
+
+            if ~isempty(dev_match)
+                device = dev_match{1}{1};
+                fprintf('  Will format %s (%s) as FAT32 with label PATSD.\n', sd_root, device);
+                fprintf('  WARNING: ALL DATA ON %s WILL BE ERASED.\n', sd_root);
+                reply = input('  Continue? (y/n): ', 's');
+
+                if strcmpi(strtrim(reply), 'y')
+                    fprintf('  Formatting...\n');
+                    [status, fmt_result] = system(sprintf('diskutil eraseDisk FAT32 PATSD MBRFormat %s', device));
+                    if status ~= 0
+                        mapping.error = sprintf('diskutil format failed: %s', fmt_result);
+                        return;
+                    end
+                    % Wait for volume to remount
+                    fprintf('  Waiting for volume to remount...\n');
+                    pause(3);
+
+                    % Update sd_root to new mount point
+                    sd_root = '/Volumes/PATSD';
+                    if ~isfolder(sd_root)
+                        % Try waiting a bit longer
+                        pause(3);
+                        if ~isfolder(sd_root)
+                            mapping.error = 'Volume did not remount after format. Check /Volumes/ manually.';
+                            return;
+                        end
+                    end
+
+                    mapping.sd_drive = sd_root;
+                    fprintf('  ✓ SD card formatted (now at %s)\n', sd_root);
+                    did_format = true;
+
+                    % Update target dir since sd_root changed
+                    if options.UsePatternFolder
+                        target_dir = fullfile(sd_root, 'patterns');
+                        mapping.target_dir = target_dir;
+                        mkdir(target_dir);
+                        fprintf('  ✓ Created patterns folder\n');
+                    end
+                else
+                    fprintf('\n  Format declined. To format manually, run in Terminal:\n');
+                    fprintf('    diskutil eraseDisk FAT32 PATSD MBRFormat %s\n', device);
+                    fprintf('  Then re-run this script.\n');
+                    mapping.error = 'Format declined by user';
+                    return;
+                end
+            else
+                fprintf('  Warning: Could not determine device for %s. Skipping format.\n', sd_root);
+                fprintf('  To format manually:\n');
+                fprintf('    1. Run: diskutil list external\n');
+                fprintf('    2. Find your SD card device (e.g., disk4)\n');
+                fprintf('    3. Run: diskutil eraseDisk FAT32 PATSD MBRFormat diskN\n');
+            end
+        else
+            fprintf('  Warning: Format not supported on this platform/configuration. Skipping.\n');
         end
     end
-    
-    if options.Format && is_windows && is_drive_letter
-        % Format the SD card (FAT32, label PATSD) - Windows only
-        fprintf('  Formatting as FAT32 (PATSD)...\n');
-        [status, result] = system(sprintf('format %s: /FS:FAT32 /V:PATSD /Q /Y', sd_drive));
-        if status ~= 0
-            mapping.error = sprintf('Format failed: %s', result);
-            return;
-        end
-        fprintf('  ✓ SD card formatted\n');
-        
-        % Create patterns folder if needed
-        if options.UsePatternFolder
-            mkdir(target_dir);
-            fprintf('  ✓ Created patterns folder\n');
-        end
-    else
+
+    if ~did_format
         % Manual cleanup (works on all platforms)
         if options.UsePatternFolder
             % Remove and recreate patterns folder
@@ -349,7 +420,31 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
         return;
     end
     fprintf('  ✓ Copied %d patterns\n', num_patterns);
-    
+
+    %% Clean up macOS resource fork files (._* files)
+    %  macOS creates AppleDouble "._" files when copying to FAT32 volumes.
+    %  These are invisible in Finder but occupy FAT32 directory entries,
+    %  which shifts dirIndex ordering and causes the G4.1 controller to
+    %  load wrong patterns. We must remove them before writing manifests.
+    if ismac
+        dot_files = dir(fullfile(target_dir, '._*'));
+        if ~isempty(dot_files)
+            fprintf('  Cleaning %d macOS resource fork files (._*)...\n', length(dot_files));
+            for i = 1:length(dot_files)
+                delete(fullfile(target_dir, dot_files(i).name));
+            end
+            fprintf('  ✓ Removed %d dot-files (prevents dirIndex corruption)\n', length(dot_files));
+        end
+
+        % Also clean root-level dot-files (in case manifests create them)
+        dot_files_root = dir(fullfile(sd_root, '._*'));
+        if ~isempty(dot_files_root)
+            for i = 1:length(dot_files_root)
+                delete(fullfile(sd_root, dot_files_root(i).name));
+            end
+        end
+    end
+
     %% Copy manifest files to SD card (AFTER patterns for correct dirIndex)
     try
         copyfile(bin_path, fullfile(sd_root, 'MANIFEST.bin'));
@@ -360,14 +455,34 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
     end
     fprintf('  ✓ Copied manifest files\n');
     
-    %% Verify
-    verify_count = length(dir(fullfile(target_dir, '*.pat')));
+    %% Final macOS dot-file cleanup (manifests may have created new ones)
+    if ismac
+        % Clean patterns dir
+        dot_final = dir(fullfile(target_dir, '._*'));
+        for i = 1:length(dot_final)
+            delete(fullfile(target_dir, dot_final(i).name));
+        end
+        % Clean root dir
+        dot_final_root = dir(fullfile(sd_root, '._*'));
+        for i = 1:length(dot_final_root)
+            delete(fullfile(sd_root, dot_final_root(i).name));
+        end
+        if ~isempty(dot_final) || ~isempty(dot_final_root)
+            fprintf('  ✓ Final dot-file cleanup: removed %d files\n', ...
+                length(dot_final) + length(dot_final_root));
+        end
+    end
+
+    %% Verify (exclude macOS ._* resource fork files from count)
+    all_pat = dir(fullfile(target_dir, '*.pat'));
+    real_pat = all_pat(~startsWith({all_pat.name}, '._'));
+    verify_count = length(real_pat);
     if verify_count ~= num_patterns
         mapping.error = sprintf('Verification failed: expected %d patterns, found %d on SD card', ...
             num_patterns, verify_count);
         return;
     end
-    
+
     %% Summary
     fprintf('\n=== SD Card Ready ===\n');
     fprintf('Location: %s\n', sd_root);

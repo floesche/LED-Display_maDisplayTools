@@ -23,9 +23,13 @@
 %
 % Usage:
 %   1. Run create_g41_experiment_patterns.m first
-%   2. Insert SD card (named PATSD, FAT32) — drive D: on Windows
-%   3. Run this script
+%   2. Insert SD card (named PATSD, FAT32)
+%      Windows: auto-detects drive letter D:-Z:
+%      Mac: auto-detects /Volumes/PATSD, or enter path manually
+%   3. Run this script (optionally format for clean dirIndex)
 %   4. Eject SD card safely
+%
+% Uses: detect_sd_card (utils/), prepare_sd_card_crossplatform (tests/fixtures/)
 
 %% Setup
 cd(project_root());
@@ -51,90 +55,32 @@ for i = 1:length(pat_paths)
     fprintf('  SD slot %2d: %s%s\n', i, fn, ext);
 end
 
-%% Platform-aware SD card deployment
-if ispc
-    % Windows: auto-detect SD card drive letter
-    sd_drive = '';
-    for letter = 'D':'Z'
-        candidate = [letter, ':'];
-        if isfolder(candidate)
-            [~, vol_out] = system(['vol ' letter ':']);
-            if contains(vol_out, 'PATSD')
-                sd_drive = letter;
-                break;
-            end
+%% Detect SD card (cross-platform)
+sd = detect_sd_card('Label', 'PATSD', 'Verbose', true);
+
+if sd.found
+    sd_location = sd.path;
+    fprintf('\nSD card found: %s (device: %s)\n', sd.path, sd.device);
+else
+    % Not found — show candidates and prompt
+    if ~isempty(sd.candidates)
+        fprintf('\nNo SD card named PATSD found. Other volumes detected:\n');
+        for c = 1:length(sd.candidates)
+            cand = sd.candidates{c};
+            fprintf('  %s (label: %s)\n', cand.path, cand.label);
         end
-    end
-
-    if isempty(sd_drive)
-        fprintf('\nNo SD card named PATSD found on drives D:-Z:.\n');
-        fprintf('Please either:\n');
-        fprintf('  1. Rename your SD card to PATSD (right-click drive in Explorer > Properties > rename)\n');
-        fprintf('  2. Format with: format D: /FS:FAT32 /V:PATSD /Q\n');
-        fprintf('  3. Or enter the drive letter manually.\n\n');
-        reply = input('Drive letter (e.g. D), or press Enter to abort: ', 's');
-        if isempty(strtrim(reply))
-            fprintf('Aborted.\n');
-            return;
-        end
-        sd_drive = upper(strtrim(reply(1)));
-    end
-
-    fprintf('\nWindows: Using drive %s:\n', sd_drive);
-    reply = input('Proceed with SD card copy? (y/n): ', 's');
-    if ~strcmpi(reply, 'y')
-        fprintf('Aborted.\n');
-        return;
-    end
-
-    mapping = prepare_sd_card(pat_paths, sd_drive, 'Format', true);
-    if ~mapping.success
-        fprintf('\n*** SD card copy FAILED: %s ***\n', mapping.error);
-        return;
-    end
-elseif ismac
-    % macOS: detect SD card at /Volumes/PATSD, or fall back to staging dir
-    sd_vol = '/Volumes/PATSD';
-    if exist(sd_vol, 'dir')
-        sd_dest = sd_vol;
-        fprintf('\nmacOS: SD card found at %s\n', sd_dest);
     else
-        % Check for any mounted volume that looks like an SD card
-        sd_dest = '';
-        vols = dir('/Volumes');
-        for v = 1:length(vols)
-            vname = vols(v).name;
-            if startsWith(vname, '.'), continue; end
-            candidate = fullfile('/Volumes', vname);
-            % Skip system volumes
-            if ismember(vname, {'Macintosh HD', 'Macintosh HD - Data', 'Recovery'})
-                continue;
-            end
-            fprintf('  Found volume: %s\n', candidate);
-        end
-        if isempty(sd_dest)
-            fprintf('\nmacOS: No SD card (PATSD) found at /Volumes/PATSD\n');
-            fprintf('Insert SD card (FAT32, label PATSD) and re-run, or enter volume path.\n');
-            reply = input('Volume path (or press Enter to stage locally): ', 's');
-            if ~isempty(strtrim(reply)) && exist(strtrim(reply), 'dir')
-                sd_dest = strtrim(reply);
-            end
-        end
+        fprintf('\nNo SD card named PATSD found.\n');
     end
 
-    if ~isempty(sd_dest)
-        % Copy directly to SD card
-        fprintf('\nCopying %d patterns to %s\n\n', length(pat_paths), sd_dest);
-        for i = 1:length(pat_paths)
-            sd_name = sprintf('pat%04d.pat', i);
-            dst = fullfile(sd_dest, sd_name);
-            copyfile(pat_paths{i}, dst);
-            fprintf('  %s -> %s\n', names{i}, sd_name);
-        end
-        mapping = struct('success', true, 'sd_path', sd_dest, ...
-                         'num_patterns', length(pat_paths));
-        fprintf('\nPatterns copied to SD card. Eject safely before removing.\n');
+    if ispc
+        fprintf('Enter drive letter (e.g. D), or press Enter to stage locally: ');
     else
+        fprintf('Enter volume path (e.g. /Volumes/MYSD), or press Enter to stage locally: ');
+    end
+    reply = input('', 's');
+
+    if isempty(strtrim(reply))
         % Fall back to local staging
         staging_dir = fullfile(pwd, 'tests', 'sd_staging');
         if ~exist(staging_dir, 'dir'), mkdir(staging_dir); end
@@ -148,17 +94,24 @@ elseif ismac
         mapping = struct('success', true, 'staging_dir', staging_dir, ...
                          'num_patterns', length(pat_paths));
         fprintf('\nTo deploy: copy contents of %s to SD card root.\n', staging_dir);
+        fprintf('\n=== Done. %d patterns staged locally. ===\n', length(pat_paths));
+        return;
     end
-else
-    % Linux or other
-    staging_dir = fullfile(pwd, 'tests', 'sd_staging');
-    fprintf('Staging to %s (copy to SD card manually)\n', staging_dir);
-    if ~exist(staging_dir, 'dir'), mkdir(staging_dir); end
-    for i = 1:length(pat_paths)
-        copyfile(pat_paths{i}, fullfile(staging_dir, sprintf('pat%04d.pat', i)));
-    end
-    mapping = struct('success', true, 'staging_dir', staging_dir, ...
-                     'num_patterns', length(pat_paths));
+
+    sd_location = strtrim(reply);
+end
+
+%% Deploy to SD card using prepare_sd_card_crossplatform
+fprintf('\nDeploying %d patterns to %s\n', length(pat_paths), sd_location);
+reply = input('Format SD card first? (y/n, recommended for reliable dirIndex): ', 's');
+do_format = strcmpi(strtrim(reply), 'y');
+
+mapping = prepare_sd_card_crossplatform(pat_paths, sd_location, ...
+    'Format', do_format, 'ValidateDriveName', false);
+
+if ~mapping.success
+    fprintf('\n*** SD card deployment FAILED: %s ***\n', mapping.error);
+    return;
 end
 
 fprintf('\n=== Done. %d patterns staged. ===\n', length(pat_paths));

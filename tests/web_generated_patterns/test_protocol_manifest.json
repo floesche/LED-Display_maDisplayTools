@@ -1,0 +1,54 @@
+{
+  "generator": "generate-roundtrip-protocol.js",
+  "generated_at": "2026-02-28T12:02:29.552Z",
+  "version": 1,
+  "protocol_file": "test_protocol_v1.yaml",
+  "expected": {
+    "name": "Web Roundtrip Test Protocol",
+    "author": "Roundtrip Test Generator",
+    "generation": "G4.1",
+    "num_rows": 2,
+    "num_cols": 12,
+    "repetitions": 1,
+    "randomization_enabled": false,
+    "num_conditions": 3,
+    "conditions": [
+      {
+        "id": "sine_grating_gs16",
+        "pattern": "web_G41_2x12_gs16_sine_grating_G4.pat",
+        "pattern_ID": 1,
+        "duration": 5,
+        "mode": 2,
+        "frame_index": 1,
+        "frame_rate": 60,
+        "gain": 0
+      },
+      {
+        "id": "square_grating_gs16",
+        "pattern": "web_G4_4x12_gs16_square_grating_G4.pat",
+        "pattern_ID": 2,
+        "duration": 5,
+        "mode": 2,
+        "frame_index": 1,
+        "frame_rate": 10,
+        "gain": 0
+      },
+      {
+        "id": "square_grating_gs2",
+        "pattern": "web_G4_4x12_gs2_square_grating_G4.pat",
+        "pattern_ID": 3,
+        "duration": 3,
+        "mode": 2,
+        "frame_index": 1,
+        "frame_rate": 30,
+        "gain": 0
+      }
+    ],
+    "pretrial_include": true,
+    "pretrial_num_commands": 4,
+    "intertrial_include": true,
+    "intertrial_num_commands": 2,
+    "posttrial_include": true,
+    "posttrial_num_commands": 2
+  }
+}

@@ -1951,3 +1951,64 @@ All 12 patterns played successfully on the G4.1 CW arena using Mode 2 (constant 
 - `utils/prepare_sd_card.m` — improved PATSD error messages
 - `examples/benchmark_mode3_framerate.m` — created, Mode 3 rate sweep + timing tests
 - `docs/arena_config_audit.md` — updated with 3-phase consolidation plan
+
+---
+
+## Session: Feb 28 + Mar 1, 2026 — Web Roundtrip CI + Mac SD Card + Dot-File Fix
+
+### Overview
+
+Two-part session spanning cross-repo work. Web tools: protocol YAML roundtrip CI, import bug fix. MATLAB tools: full Mac SD card workflow (detect, format, deploy, verify), macOS dot-file fix, automated test suite, redundancy cleanup.
+
+### Web Tools (webDisplayTools — pushed to main ✅)
+
+**Import Bug Fix**:
+- `experiment_designer.html` v0.2: Fixed two missing closing `}` braces in `simpleYAMLParse()` comment-handling regex. Multi-condition YAML import now works correctly.
+- `experiment_designer_quickstart.html`: Fixed arena dropdown reference (removed CCW).
+
+**Roundtrip CI Pipeline**:
+- `tests/generate-roundtrip-protocol.js` — V1 YAML generator with self-verification
+- `tests/test-protocol-roundtrip.js` — 49-check regression test (fields, structure, values)
+- `.github/workflows/validate-protocol-roundtrip.yml` — runs on push, validates generator + roundtrip
+- `docs/protocol-roundtrip-testing.md` — architecture documentation
+- All 3 existing CI workflows still pass.
+
+### MATLAB Tools (maDisplayTools — NOT YET COMMITTED)
+
+**Mac SD Card Support**:
+- `utils/detect_sd_card.m` (NEW) — cross-platform SD card detection (Windows/Mac/Linux), returns struct with found/path/device/platform
+- `tests/fixtures/prepare_sd_card_crossplatform.m` (MODIFIED) — Mac `diskutil eraseDisk` formatting, `ValidateDriveName` on Mac via `fileparts()` (extracts volume name from `/Volumes/PATSD`)
+
+**macOS Dot-File Fix (Mar 1)**:
+- Root cause: macOS creates `._` AppleDouble resource fork files on FAT32 volumes. MATLAB's `dir('*.pat')` matches them AND G4.1 controller sees them as FAT32 directory entries, corrupting dirIndex ordering.
+- Fix: three-pronged — (1) delete `._*` after pattern copy, (2) delete `._*` after manifest copy, (3) filter `._*` from verification count.
+- Confirmed working: 16 patterns, `mapping.success = true`, `mapping.num_patterns = 16`.
+
+**Automated Test Suite**:
+- `tests/test_sd_card_deployment.m` (NEW) — ~15 tests: staging, naming, manifests, dot-file cleanup, ValidateDriveName, detect_sd_card, optional real SD card tests
+- Replaces 5 deleted ad-hoc scripts
+
+**Roundtrip Validation**:
+- `tests/validate_web_protocol_roundtrip.m` (NEW) — 28/28 tests for MATLAB-side roundtrip
+- `tests/web_generated_patterns/` (NEW) — generated YAML + manifest from web tools
+
+**Redundancy Cleanup** (5 files deleted):
+- `tests/create_lab_test_patterns.m` — deprecated stub
+- `examples/test_sd_card_copy.m` — Windows-only wrapper, replaced by test suite
+- `examples/test_sd_card_copy_100.m` — Windows-only 100-pattern wrapper
+- `examples/create_test_patterns.m` — simple patterns, not lab-meaningful
+- `examples/create_test_patterns_100.m` — 100 number patterns, original dirIndex test completed
+
+**Kept**: `tests/integration/test_sd_deployment_mac.m` — tests YAML→SD pipeline (different purpose)
+
+### Documentation Updated
+
+- `docs/sd_card_deployment_notes.md` — Mac quick start, platform table, dot-file troubleshooting, test reference, changelog
+- `docs/testing_plan_2026-02-28.md` — full testing plan for session changes
+- `docs/lab_test_plan_2026-03-02.md` (NEW) — brief lab test plan for hardware validation
+
+### Next Steps
+
+1. Lab test Mar 2: `test_sd_card_deployment('UseRealSD', true)` → controller pattern verification
+2. After lab sign-off: commit all MATLAB changes, close GitHub #16
+3. Lisa: shift testing to reference patterns at `patterns/reference/G41_2x12_cw/`
