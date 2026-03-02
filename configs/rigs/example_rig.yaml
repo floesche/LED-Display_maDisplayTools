@@ -27,6 +27,8 @@ plugins:
     type: "BIAS"
     ip: "127.0.0.1"
     port: 5010
+    config_file: 'path/to/json/file'
+    executable_file: 'path/to/BIAS/exe/file'
   temperature:
     enabled: false
     daq_device: "ni"

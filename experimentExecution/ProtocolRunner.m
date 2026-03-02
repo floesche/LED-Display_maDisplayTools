@@ -26,7 +26,7 @@ classdef ProtocolRunner < handle
     end
     
     methods (Access = public)
-        function self = ProtocolRunner(protocolFilePath, arenaIP, varargin)
+        function self = ProtocolRunner(protocolFilePath, varargin)
             % PROTOCOLRUNNER Constructor
             %
             % Syntax:
@@ -44,22 +44,24 @@ classdef ProtocolRunner < handle
             % Parse inputs
             p = inputParser;
             addRequired(p, 'protocolFilePath', @ischar);
-            addRequired(p, 'arenaIP', @ischar);
+            addParameter(p, 'arenaIP', @ischar);
             addParameter(p, 'OutputDir', './experiments', @ischar);
             addParameter(p, 'Verbose', true, @islogical);
             addParameter(p, 'DryRun', false, @islogical);
-            parse(p, protocolFilePath, arenaIP, varargin{:});
+            parse(p, protocolFilePath, varargin{:});
             
             % Store configuration
             self.protocolFilePath = p.Results.protocolFilePath;
             self.outputDir = p.Results.OutputDir;
             self.verbose = p.Results.Verbose;
             self.dryRun = p.Results.DryRun;
-            self.arenaIP = p.Results.arenaIP;
+            % self.arenaIP = p.Results.arenaIP;
             
             % Initialize (validation only at construction)
             self.validateEnvironment();
             self.parseProtocol();
+
+            self.arenaIP = self.protocolData.rigConfig.controller.host;
 
             %self.extractPatternMapping();
         end

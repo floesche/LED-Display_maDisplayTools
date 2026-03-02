@@ -1,7 +1,7 @@
 # Protocol Version 1 - Complete Example
 # This example demonstrates all features of the protocol specification
 
-version: 1
+version: 2
 
 # ============================================================================
 # EXPERIMENT METADATA
@@ -10,15 +10,12 @@ experiment_info:
   name: "Simple arena-only experiment"
   date_created: "12-15-2025"
   author: "Lisa F"
-  pattern_library: "/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/examples/SimpleYamlExperimentDemo"
+  pattern_library: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/patterns/reference/G41_2x12_cw'
 
 # ============================================================================
 # ARENA CONFIGURATION
 # ============================================================================
-arena_info:
-  num_rows: 2
-  num_cols: 12
-  generation: "G4.1"
+rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/test_rig_1.yaml' # REPLACE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
@@ -51,7 +48,7 @@ pretrial:
     # Display a test pattern to verify arena
     - type: "controller"
       command_name: "trialParams"
-      pattern: 'pat0001_2row_gs2_sqGrate.pat'
+      pattern: 'pat01_sq_grating_30deg_gs2_G4.pat'
       pattern_ID: 1
       duration: 2  # 2 seconds
       mode: 2  # position mode
@@ -74,8 +71,8 @@ block:
        
         # Display pattern
         - type: "controller"
-          command_name: "startG41Trial"
-          pattern: 'pat0001_2row_gs2_sqGrate.pat'
+          command_name: "trialParams"
+          pattern: 'pat01_sq_grating_30deg_gs2_G4.pat'
           pattern_ID: 1
           duration: 5  # 5 seconds
           mode: 2  # closed-loop mode
@@ -89,9 +86,9 @@ block:
       commands:
         
         - type: "controller"
-          command_name: "startG41Trial"
-          pattern: 'pat0002.pat'
-          pattern_ID: 2
+          command_name: "trialParams"
+          pattern: 'pat03_sq_grating_60deg_gs2_G4.pat'
+          pattern_ID: 3
           duration: 5 # 5 seconds
           mode: 2
           frame_index: 1
@@ -103,9 +100,9 @@ block:
       commands:
         
         - type: "controller"
-          command_name: "startG41Trial"
-          pattern: 'pat0003.pat'
-          pattern_ID: 3
+          command_name: "trialParams"
+          pattern: 'pat11_luminance_levels_gs2_G4.pat'
+          pattern_ID: 11
           duration: 3  # 3 seconds
           mode: 2  # position mode (static)
           frame_index: 1
@@ -133,9 +130,9 @@ intertrial:
   commands:
     # Reset to baseline pattern
     - type: "controller"
-      command_name: "startG41Trial"
-      pattern: 'pat0001_2row_gs2_sqGrate.pat'
-      pattern_ID: 1
+      command_name: "trialParams"
+      pattern: 'pat15_web_sq_grating_30deg_gs16.pat'
+      pattern_ID: 15
       duration: 2  # 2 second inter-trial interval
       mode: 2
       frame_index: 1
@@ -152,9 +149,9 @@ posttrial:
    
     # Display posttrial pattern
     - type: "controller"
-      command_name: "startG41Trial"
-      pattern: 'pat0004.pat'
-      pattern_ID: 4
+      command_name: "trialParams"
+      pattern: 'pat09_counter_0000_1000_gs2_G4.pat'
+      pattern_ID: 9
       duration: 2
       mode: 2
       frame_index: 1

@@ -10,7 +10,7 @@ function [isValid, errors, warnings] = validate_protocol_for_sd_card(protocolFil
 %   [isValid, errors, warnings] = validate_protocol_for_sd_card(..., 'Verbose', true)
 %
 % Input Arguments:
-%   protocolFilePath     - Path to YAML protocol file (required)
+%   protocolFilePath     - Path to V2 YAML protocol file (required)
 %   resolvedPatternPaths - Cell array of full pattern file paths already resolved
 %                          by extract_patterns_from_yaml() (required)
 %
@@ -27,41 +27,47 @@ function [isValid, errors, warnings] = validate_protocol_for_sd_card(protocolFil
 %      - File existence and readability
 %      - Required sections present
 %      - Field type validation
-%      - Version compatibility
+%      - Version 2 enforcement
 %
-%   2. Arena configuration validation
-%      - Valid generation (G4, G4.1, G6)
+%   2. Rig configuration validation
+%      - Rig file resolves and loads cleanly
+%      - Controller IP and port present
+%      - Arena file resolved from rig
+%
+%   3. Arena configuration validation
+%      - Valid generation (G3, G4, G4.1, G6)
 %      - Reasonable row/column counts
-%      - Hardware compatibility
+%      - column_order, orientation, columns_installed, angle_offset fields
 %
-%   3. Experiment structure validation
+%   4. Experiment structure validation
 %      - Positive repetition count
 %      - Valid randomization settings
 %      - Condition definitions complete
 %
-%   4. Plugin configuration validation
+%   5. Plugin configuration validation
 %      - Supported plugin types
-%      - Required fields present
-%      - Type-specific validation
+%      - Required fields present per type
+%      - Warns if class plugin has no config (expected to come from rig YAML)
 %
-%   5. Command validation
+%   6. Command validation
 %      - All commands have required fields
 %      - Parameter types correct
 %      - Value ranges appropriate
 %
-%   6. Pattern file validation
+%   7. Pattern file validation
 %      - All pattern files exist (using resolvedPatternPaths)
 %      - Pattern files readable
-%      - Pattern dimensions match arena configuration
+%      - Pattern dimensions match arena configuration (accounts for
+%        partial arenas via columns_installed)
 %
 % Example:
 %   % Extract patterns from YAML (resolves paths)
 %   [patterns_per_yaml, yaml_files] = extract_patterns_from_yaml('experiment.yaml');
-%   
+%
 %   % Validate using resolved paths
 %   [valid, errors, warns] = validate_protocol_for_sd_card(...
 %       yaml_files{1}, patterns_per_yaml{1});
-%   
+%
 %   if ~valid
 %       fprintf('Validation failed with %d errors:\n', length(errors));
 %       for i = 1:length(errors)
@@ -71,7 +77,8 @@ function [isValid, errors, warnings] = validate_protocol_for_sd_card(protocolFil
 %       fprintf('Validation passed! Safe to copy to SD card.\n');
 %   end
 %
-% See also: ProtocolParser, run_protocol, extract_patterns_from_yaml
+% See also: ProtocolParser, run_protocol, extract_patterns_from_yaml,
+%           load_rig_config, load_arena_config
 
     % Parse input arguments
     p = inputParser;
@@ -79,550 +86,783 @@ function [isValid, errors, warnings] = validate_protocol_for_sd_card(protocolFil
     addRequired(p, 'resolvedPatternPaths', @iscell);
     addParameter(p, 'Verbose', true, @islogical);
     parse(p, protocolFilePath, resolvedPatternPaths, varargin{:});
-    
+
     verbose = p.Results.Verbose;
     protocolFilePath = char(p.Results.protocolFilePath);
     resolvedPatternPaths = p.Results.resolvedPatternPaths;
-    
+
     % Initialize outputs
     errors = {};
     warnings = {};
-    
+
     if verbose
         fprintf('\n=== Protocol Validation for SD Card Deployment ===\n');
         fprintf('Protocol: %s\n', protocolFilePath);
         fprintf('Patterns to validate: %d\n\n', length(resolvedPatternPaths));
     end
-    
+
     %% Phase 1: Parse and validate YAML structure
     if verbose
         fprintf('Phase 1: YAML Structure Validation\n');
     end
-    
+
     try
-        % Use ProtocolParser for comprehensive YAML validation
         parser = ProtocolParser('verbose', false);
         protocol = parser.parse(protocolFilePath);
-        
+
         if verbose
             fprintf('  ✓ YAML parsing successful\n');
-            fprintf('  ✓ Protocol version %d supported\n', protocol.version);
         end
-        
+
     catch ME
         errors{end+1} = sprintf('YAML parsing failed: %s', ME.message);
         if verbose
-            fprintf('  ✗ YAML parsing failed\n');
+            fprintf('  ✗ YAML parsing failed: %s\n', ME.message);
         end
         isValid = false;
         return;
     end
-    
-    %% Phase 2: Arena configuration validation
-    if verbose
-        fprintf('Phase 2: Arena Configuration Validation\n');
+
+    % Enforce V2 — V1 protocols are not supported
+    if protocol.version < 2
+        errors{end+1} = sprintf(['Protocol is version %d. Only version 2 is supported.\n' ...
+            '  Migrate by replacing arena_info with a rig: reference.\n' ...
+            '  Example: rig: "../configs/rigs/my_rig.yaml"'], protocol.version);
+        if verbose
+            fprintf('  ✗ Version %d protocol rejected (V2 required)\n', protocol.version);
+        end
+        isValid = false;
+        return;
     end
-    
-    [arenaErrors, arenaWarnings] = validateArenaConfiguration(protocol.arenaConfig, verbose);
+
+    if verbose
+        fprintf('  ✓ Protocol version %d confirmed\n', protocol.version);
+    end
+
+    %% Phase 2: Rig configuration validation
+    if verbose
+        fprintf('Phase 2: Rig Configuration Validation\n');
+    end
+
+    [rigErrors, rigWarnings] = validateRigConfiguration(protocol, verbose);
+    errors = [errors, rigErrors];
+    warnings = [warnings, rigWarnings];
+
+    % If rig config is broken, arena/pattern checks will also fail — stop early
+    if ~isempty(rigErrors)
+        isValid = false;
+        if verbose
+            printSummary(errors, warnings);
+        end
+        return;
+    end
+
+    %% Phase 3: Arena configuration validation
+    if verbose
+        fprintf('Phase 3: Arena Configuration Validation\n');
+    end
+
+    [arenaErrors, arenaWarnings] = validateArenaConfiguration(protocol.arenaConfig, ...
+        protocol.derivedConfig, verbose);
     errors = [errors, arenaErrors];
     warnings = [warnings, arenaWarnings];
-    
-    %% Phase 3: Experiment structure validation
+
+    %% Phase 4: Experiment structure validation
     if verbose
-        fprintf('Phase 3: Experiment Structure Validation\n');
+        fprintf('Phase 4: Experiment Structure Validation\n');
     end
-    
+
     [expErrors, expWarnings] = validateExperimentStructure(protocol.experimentStructure, verbose);
     errors = [errors, expErrors];
     warnings = [warnings, expWarnings];
-    
-    %% Phase 4: Plugin configuration validation
+
+    %% Phase 5: Plugin configuration validation
     if verbose
-        fprintf('Phase 4: Plugin Configuration Validation\n');
+        fprintf('Phase 5: Plugin Configuration Validation\n');
     end
-    
+
     if isfield(protocol, 'plugins') && ~isempty(protocol.plugins)
-        [pluginErrors, pluginWarnings] = validatePlugins(protocol.plugins, verbose);
+        [pluginErrors, pluginWarnings] = validatePlugins(protocol.plugins, ...
+            protocol.rigConfig, verbose);
         errors = [errors, pluginErrors];
         warnings = [warnings, pluginWarnings];
     else
         if verbose
-            fprintf('  ℹ No plugins defined\n');
+            fprintf('  ℹ No plugins defined in experiment YAML\n');
         end
     end
-    
-    %% Phase 5: Command validation
+
+    %% Phase 6: Command validation
     if verbose
-        fprintf('Phase 5: Command Validation\n');
+        fprintf('Phase 6: Command Validation\n');
     end
-    
+
     [cmdErrors, cmdWarnings] = validateCommands(protocol, verbose);
     errors = [errors, cmdErrors];
     warnings = [warnings, cmdWarnings];
-    
-    %% Phase 6: Pattern file validation
+
+    %% Phase 7: Pattern file validation
     if verbose
-        fprintf('Phase 6: Pattern File Validation\n');
+        fprintf('Phase 7: Pattern File Validation\n');
     end
-    
+
     [patErrors, patWarnings] = validatePatternFiles(protocol, resolvedPatternPaths, verbose);
     errors = [errors, patErrors];
     warnings = [warnings, patWarnings];
-    
+
     %% Summary
     isValid = isempty(errors);
-    
+
     if verbose
-        fprintf('\n=== Validation Summary ===\n');
-        if isValid
-            fprintf('✓ VALIDATION PASSED\n');
-        else
-            fprintf('✗ VALIDATION FAILED\n');
-        end
-        fprintf('  Errors: %d\n', length(errors));
-        fprintf('  Warnings: %d\n', length(warnings));
-        
-        if ~isempty(errors)
-            fprintf('\nErrors:\n');
-            for i = 1:length(errors)
-                fprintf('  %d. %s\n', i, errors{i});
-            end
-        end
-        
-        if ~isempty(warnings)
-            fprintf('\nWarnings:\n');
-            for i = 1:length(warnings)
-                fprintf('  %d. %s\n', i, warnings{i});
-            end
-        end
-        fprintf('========================\n\n');
+        printSummary(errors, warnings);
     end
 end
 
+%% =========================================================================
 %% Validation Helper Functions
+%% =========================================================================
 
-function [errors, warnings] = validateArenaConfiguration(arenaConfig, verbose)
+function printSummary(errors, warnings)
+    isValid = isempty(errors);
+    fprintf('\n=== Validation Summary ===\n');
+    if isValid
+        fprintf('✓ VALIDATION PASSED\n');
+    else
+        fprintf('✗ VALIDATION FAILED\n');
+    end
+    fprintf('  Errors: %d\n', length(errors));
+    fprintf('  Warnings: %d\n', length(warnings));
+
+    if ~isempty(errors)
+        fprintf('\nErrors:\n');
+        for i = 1:length(errors)
+            fprintf('  %d. %s\n', i, errors{i});
+        end
+    end
+
+    if ~isempty(warnings)
+        fprintf('\nWarnings:\n');
+        for i = 1:length(warnings)
+            fprintf('  %d. %s\n', i, warnings{i});
+        end
+    end
+    fprintf('========================\n\n');
+end
+
+% -------------------------------------------------------------------------
+
+function [errors, warnings] = validateRigConfiguration(protocol, verbose)
     errors = {};
     warnings = {};
-    
-    % Check generation
-    validGenerations = {'G3', 'G4', 'G4.1', 'G6'};
-    if ~ismember(arenaConfig.generation, validGenerations)
-        errors{end+1} = sprintf('Invalid arena generation: %s (must be G3, G4, G4.1, or G6)', ...
-            arenaConfig.generation);
+
+    % Confirm rig config was resolved by ProtocolParser
+    if ~isfield(protocol, 'rigConfig') || isempty(protocol.rigConfig)
+        errors{end+1} = 'Rig config not resolved — check rig: path in protocol YAML';
+        if verbose
+            fprintf('  ✗ Rig config missing\n');
+        end
+        return;
     end
-    
-    % Check dimensions
-    if arenaConfig.num_rows < 1 || arenaConfig.num_rows > 12
-        errors{end+1} = sprintf('Invalid num_rows: %d (must be 1-12)', arenaConfig.num_rows);
+
+    rig = protocol.rigConfig;
+
+    % Rig name (informational)
+    if isfield(rig, 'name') && ~isempty(rig.name)
+        if verbose
+            fprintf('  ✓ Rig: %s\n', rig.name);
+        end
+    else
+        warnings{end+1} = 'Rig config has no name field';
     end
-    
-    if arenaConfig.num_cols < 1 || arenaConfig.num_cols > 24
-        errors{end+1} = sprintf('Invalid num_cols: %d (must be 1-24)', arenaConfig.num_cols);
+
+    % Controller host (IP address)
+    if ~isfield(rig, 'controller') || ~isfield(rig.controller, 'host') || ...
+            isempty(rig.controller.host)
+        errors{end+1} = 'Rig config missing controller.host (IP address)';
+    else
+        % Basic IP format check: four dot-separated groups
+        hostStr = char(rig.controller.host);
+        parts = strsplit(hostStr, '.');
+        if length(parts) ~= 4 || any(cellfun(@(p) isempty(p) || isnan(str2double(p)), parts))
+            warnings{end+1} = sprintf('Controller host may not be a valid IP address: %s', hostStr);
+        else
+            if verbose
+                fprintf('  ✓ Controller: %s', hostStr);
+            end
+        end
     end
-    
-    % Warnings for unusual configurations
-    if arenaConfig.num_rows > 6
-        warnings{end+1} = sprintf('Unusually large num_rows: %d (typical: 3-4)', ...
-            arenaConfig.num_rows);
+
+    % Controller port
+    if ~isfield(rig, 'controller') || ~isfield(rig.controller, 'port')
+        warnings{end+1} = 'Rig config missing controller.port (will default to 62222)';
+    else
+        port = rig.controller.port;
+        if ~isnumeric(port) || port < 1 || port > 65535
+            errors{end+1} = sprintf('Invalid controller port: %s (must be 1-65535)', num2str(port));
+        else
+            if verbose
+                fprintf(':%d\n', port);
+            end
+        end
     end
-    
-    if arenaConfig.num_cols > 16
-        warnings{end+1} = sprintf('Unusually large num_cols: %d (typical: 12)', ...
-            arenaConfig.num_cols);
+
+    % Arena file was resolved
+    if ~isfield(protocol, 'arenaFilepath') || isempty(protocol.arenaFilepath)
+        warnings{end+1} = 'Arena file path not recorded in parsed protocol';
+    else
+        if ~isfile(protocol.arenaFilepath)
+            errors{end+1} = sprintf('Arena config file not found: %s', protocol.arenaFilepath);
+        else
+            if verbose
+                fprintf('  ✓ Arena file: %s\n', protocol.arenaFilepath);
+            end
+        end
     end
-    
+
     if verbose && isempty(errors)
-        fprintf('  ✓ Arena: %s, %dx%d panels\n', arenaConfig.generation, ...
-            arenaConfig.num_rows, arenaConfig.num_cols);
+        fprintf('  ✓ Rig configuration valid\n');
     end
 end
+
+% -------------------------------------------------------------------------
+
+function [errors, warnings] = validateArenaConfiguration(arenaConfig, derivedConfig, verbose)
+    errors = {};
+    warnings = {};
+
+    % Generation
+    validGenerations = {'G3', 'G4', 'G4.1', 'G6'};
+    if ~isfield(arenaConfig, 'generation') || isempty(arenaConfig.generation)
+        errors{end+1} = 'Arena config missing generation field';
+    elseif ~ismember(arenaConfig.generation, validGenerations)
+        errors{end+1} = sprintf('Invalid arena generation: "%s" (must be G3, G4, G4.1, or G6)', ...
+            arenaConfig.generation);
+    end
+
+    % num_rows
+    if ~isfield(arenaConfig, 'num_rows')
+        errors{end+1} = 'Arena config missing num_rows';
+    elseif arenaConfig.num_rows < 1 || arenaConfig.num_rows > 12
+        errors{end+1} = sprintf('Invalid num_rows: %d (must be 1-12)', arenaConfig.num_rows);
+    elseif arenaConfig.num_rows > 6
+        warnings{end+1} = sprintf('Unusually large num_rows: %d (typical: 2-4)', arenaConfig.num_rows);
+    end
+
+    % num_cols
+    if ~isfield(arenaConfig, 'num_cols')
+        errors{end+1} = 'Arena config missing num_cols';
+    elseif arenaConfig.num_cols < 1 || arenaConfig.num_cols > 24
+        errors{end+1} = sprintf('Invalid num_cols: %d (must be 1-24)', arenaConfig.num_cols);
+    elseif arenaConfig.num_cols > 18
+        warnings{end+1} = sprintf('Unusually large num_cols: %d (typical: 12-18)', arenaConfig.num_cols);
+    end
+
+    % column_order
+    if isfield(arenaConfig, 'column_order') && ~isempty(arenaConfig.column_order)
+        validOrders = {'cw', 'ccw'};
+        if ~ismember(lower(arenaConfig.column_order), validOrders)
+            errors{end+1} = sprintf('Invalid column_order: "%s" (must be "cw" or "ccw")', ...
+                arenaConfig.column_order);
+        end
+    else
+        warnings{end+1} = 'Arena config missing column_order (will default to "cw")';
+    end
+
+    % orientation
+    if isfield(arenaConfig, 'orientation') && ~isempty(arenaConfig.orientation)
+        validOrientations = {'normal', 'inverted'};
+        if ~ismember(lower(arenaConfig.orientation), validOrientations)
+            errors{end+1} = sprintf('Invalid orientation: "%s" (must be "normal" or "inverted")', ...
+                arenaConfig.orientation);
+        end
+    end
+
+    % angle_offset_deg
+    if isfield(arenaConfig, 'angle_offset_deg') && ~isempty(arenaConfig.angle_offset_deg)
+        offset = arenaConfig.angle_offset_deg;
+        if ~isnumeric(offset)
+            errors{end+1} = 'angle_offset_deg must be a number';
+        elseif abs(offset) > 360
+            warnings{end+1} = sprintf('angle_offset_deg of %.1f degrees seems unusually large', offset);
+        end
+    end
+
+    % columns_installed (partial arena)
+    if isfield(arenaConfig, 'columns_installed') && ~isempty(arenaConfig.columns_installed)
+        installed = arenaConfig.columns_installed;
+        numCols = arenaConfig.num_cols;
+
+        % Check indices are in valid range (0-indexed)
+        if any(installed < 0) || any(installed >= numCols)
+            errors{end+1} = sprintf(['columns_installed contains out-of-range indices. ' ...
+                'Valid range is 0 to %d (0-indexed).'], numCols - 1);
+        end
+
+        % Check for duplicates
+        if length(unique(installed)) < length(installed)
+            errors{end+1} = 'columns_installed contains duplicate column indices';
+        end
+
+        numInstalled = length(unique(installed));
+        if verbose
+            fprintf('  ✓ Partial arena: %d of %d columns installed\n', numInstalled, numCols);
+        end
+    end
+
+    % Derived config sanity check (if available)
+    if ~isempty(derivedConfig)
+        if isfield(derivedConfig, 'total_pixels_x') && derivedConfig.total_pixels_x < 1
+            errors{end+1} = 'Derived total_pixels_x is zero — check arena dimensions and generation';
+        end
+        if isfield(derivedConfig, 'total_pixels_y') && derivedConfig.total_pixels_y < 1
+            errors{end+1} = 'Derived total_pixels_y is zero — check arena dimensions and generation';
+        end
+        if verbose && isempty(errors)
+            fprintf('  ✓ Arena: %s, %dx%d panels, %dx%d px\n', ...
+                arenaConfig.generation, ...
+                arenaConfig.num_rows, arenaConfig.num_cols, ...
+                derivedConfig.total_pixels_x, derivedConfig.total_pixels_y);
+        end
+    else
+        if verbose && isempty(errors)
+            fprintf('  ✓ Arena: %s, %dx%d panels\n', ...
+                arenaConfig.generation, arenaConfig.num_rows, arenaConfig.num_cols);
+        end
+    end
+end
+
+% -------------------------------------------------------------------------
 
 function [errors, warnings] = validateExperimentStructure(expStructure, verbose)
     errors = {};
     warnings = {};
-    
-    % Check repetitions
+
+    % Repetitions
     if ~isfield(expStructure, 'repetitions')
-        errors{end+1} = 'Missing required field: repetitions';
+        errors{end+1} = 'experiment_structure missing required field: repetitions';
     elseif expStructure.repetitions < 1
-        errors{end+1} = sprintf('Invalid repetitions: %d (must be >= 1)', ...
-            expStructure.repetitions);
+        errors{end+1} = sprintf('Invalid repetitions: %d (must be >= 1)', expStructure.repetitions);
     elseif expStructure.repetitions > 100
-        warnings{end+1} = sprintf('Large repetition count: %d (may result in long experiment)', ...
+        warnings{end+1} = sprintf('Large repetition count: %d (may result in a very long experiment)', ...
             expStructure.repetitions);
     end
-    
-    % Check randomization
+
+    % Randomization
     if isfield(expStructure, 'randomization')
         rand = expStructure.randomization;
         if isfield(rand, 'enabled') && rand.enabled
             if ~isfield(rand, 'method') || ~strcmp(rand.method, 'block')
-                errors{end+1} = 'Invalid randomization method (only "block" is supported)';
+                errors{end+1} = 'Invalid randomization method — only "block" is currently supported';
+            end
+            if isfield(rand, 'seed') && ~isempty(rand.seed) && ~isnumeric(rand.seed)
+                errors{end+1} = 'randomization.seed must be a number or null';
             end
         end
     end
-    
+
     if verbose && isempty(errors)
         fprintf('  ✓ Experiment structure valid\n');
     end
 end
 
-function [errors, warnings] = validatePlugins(plugins, verbose)
+% -------------------------------------------------------------------------
+
+function [errors, warnings] = validatePlugins(plugins, rigConfig, verbose)
     errors = {};
     warnings = {};
-    
+
     validTypes = {'serial_device', 'class', 'script'};
-    
+
     for i = 1:length(plugins)
-        if length(plugins) == 1
-            plugin = plugins;
-        else
+        if iscell(plugins)
             plugin = plugins{i};
+        else
+            plugin = plugins(i);
         end
-        
-        % Check required fields
+
+        % Required: name
         if ~isfield(plugin, 'name')
             errors{end+1} = sprintf('Plugin %d missing required field: name', i);
             continue;
         end
-        
+
+        % Required: type
         if ~isfield(plugin, 'type')
             errors{end+1} = sprintf('Plugin "%s" missing required field: type', plugin.name);
             continue;
         end
-        
-        % Check type validity
+
         if ~ismember(plugin.type, validTypes)
-            errors{end+1} = sprintf('Plugin "%s" has invalid type: %s', ...
-                plugin.name, plugin.type);
+            errors{end+1} = sprintf('Plugin "%s" has invalid type: "%s" (must be: %s)', ...
+                plugin.name, plugin.type, strjoin(validTypes, ', '));
+            continue;
         end
-        
+
         % Type-specific validation
         switch plugin.type
+
             case 'serial_device'
-                if ~isfield(plugin, 'port') && ~isfield(plugin, 'port_windows') && ~isfield(plugin, 'port_posix')
-                    errors{end+1} = sprintf('SerialDevice plugin "%s" missing port', plugin.name);
+                if ~isfield(plugin, 'port') && ~isfield(plugin, 'port_windows') && ...
+                        ~isfield(plugin, 'port_posix')
+                    errors{end+1} = sprintf('serial_device plugin "%s" missing port field', ...
+                        plugin.name);
                 end
                 if ~isfield(plugin, 'commands')
-                    errors{end+1} = sprintf('SerialDevice plugin "%s" missing commands', plugin.name);
+                    errors{end+1} = sprintf('serial_device plugin "%s" missing commands field', ...
+                        plugin.name);
                 end
-                
+
             case 'class'
-                if isfield(plugin, 'matlab')
-                    if ~isfield(plugin.matlab, 'class')
-                        errors{end+1} = sprintf('Class plugin "%s" missing matlab class', plugin.name);
-                    end
-                elseif isfield(plugin, 'python')
-                    if ~isfield(plugin.python, 'class') && ~isfield(plugin.python, 'module')
-                        errors{end+1} = sprintf('Class plugin "%s" missing python class or module', plugin.name);
-                    end
-                else
-                    errors{end+1} = sprintf('Class plugin "%s" must specify matlab or python class', plugin.name);
+                % Must specify matlab and/or python implementation
+                if ~isfield(plugin, 'matlab') && ~isfield(plugin, 'python')
+                    errors{end+1} = sprintf('Class plugin "%s" must specify matlab and/or python class', ...
+                        plugin.name);
                 end
-                
+                if isfield(plugin, 'matlab') && ~isfield(plugin.matlab, 'class')
+                    errors{end+1} = sprintf('Class plugin "%s" matlab block missing class name', ...
+                        plugin.name);
+                end
+                if isfield(plugin, 'python')
+                    if ~isfield(plugin.python, 'module') || ~isfield(plugin.python, 'class')
+                        errors{end+1} = sprintf(['Class plugin "%s" python block must specify ' ...
+                            'both module and class'], plugin.name);
+                    end
+                end
+
+                % In V2, config may live in the rig YAML rather than here.
+                % Warn if config is absent from the experiment YAML AND the rig YAML.
+                if ~isfield(plugin, 'config') || isempty(plugin.config)
+                    rigHasConfig = false;
+                    if isfield(rigConfig, 'plugins') && isstruct(rigConfig.plugins) && ...
+                            isfield(rigConfig.plugins, plugin.name)
+                        rigPlugin = rigConfig.plugins.(plugin.name);
+                        rigHasConfig = isstruct(rigPlugin) && ~isempty(fieldnames(rigPlugin));
+                    end
+
+                    if rigHasConfig
+                        if verbose
+                            fprintf('  ℹ Plugin "%s": config will be sourced from rig YAML\n', ...
+                                plugin.name);
+                        end
+                    else
+                        warnings{end+1} = sprintf(['Class plugin "%s" has no config block in ' ...
+                            'experiment YAML and none found in rig YAML — plugin may fail ' ...
+                            'to initialize'], plugin.name);
+                    end
+                end
+
             case 'script'
                 if ~isfield(plugin, 'script_path')
-                    errors{end+1} = sprintf('Script plugin "%s" missing script_path', plugin.name);
+                    errors{end+1} = sprintf('Script plugin "%s" missing script_path field', ...
+                        plugin.name);
                 end
         end
     end
-    
+
     if verbose && isempty(errors)
         fprintf('  ✓ %d plugin(s) valid\n', length(plugins));
     end
 end
 
+% -------------------------------------------------------------------------
+
 function [errors, warnings] = validateCommands(protocol, verbose)
     errors = {};
     warnings = {};
-    
-    % Collect all command sequences
+
+    % Collect all command sequences with descriptive names
     commandSets = {};
     commandSetNames = {};
-    
+
     if ~isempty(protocol.pretrialCommands)
         commandSets{end+1} = protocol.pretrialCommands;
         commandSetNames{end+1} = 'pretrial';
     end
-    
+
     for i = 1:length(protocol.blockConditions)
-        commandSets{end+1} = protocol.blockConditions(i).commands;
-        commandSetNames{end+1} = sprintf('condition %s', protocol.blockConditions(i).id);
+        if iscell(protocol.blockConditions)
+            cond = protocol.blockConditions{i};
+        else
+            cond = protocol.blockConditions(i);
+        end
+        commandSets{end+1} = cond.commands;
+        commandSetNames{end+1} = sprintf('condition "%s"', cond.id);
     end
-    
+
     if ~isempty(protocol.intertrialCommands)
         commandSets{end+1} = protocol.intertrialCommands;
         commandSetNames{end+1} = 'intertrial';
     end
-    
+
     if ~isempty(protocol.posttrialCommands)
         commandSets{end+1} = protocol.posttrialCommands;
         commandSetNames{end+1} = 'posttrial';
     end
-    
+
     % Validate each command set
     for i = 1:length(commandSets)
         commands = commandSets{i};
         setName = commandSetNames{i};
-        
-        for j = 1:length(commands)
+
+        if iscell(commands)
+            numCmds = length(commands);
+        else
+            numCmds = 1;
+            commands = {commands};
+        end
+
+        for j = 1:numCmds
             cmd = commands{j};
             [cmdErrors, cmdWarnings] = validateSingleCommand(cmd, setName, j);
             errors = [errors, cmdErrors];
             warnings = [warnings, cmdWarnings];
         end
     end
-    
+
     if verbose && isempty(errors)
         fprintf('  ✓ All commands valid\n');
     end
 end
 
+% -------------------------------------------------------------------------
+
 function [errors, warnings] = validateSingleCommand(cmd, context, index)
     errors = {};
     warnings = {};
-    
-    % Check type field
+
     if ~isfield(cmd, 'type')
         errors{end+1} = sprintf('%s command %d missing type field', context, index);
         return;
     end
-    
-    % Type-specific validation
+
     switch cmd.type
         case 'controller'
             [e, w] = validateControllerCommand(cmd, context, index);
             errors = [errors, e];
             warnings = [warnings, w];
-            
+
         case 'wait'
             [e, w] = validateWaitCommand(cmd, context, index);
             errors = [errors, e];
             warnings = [warnings, w];
-            
+
         case 'plugin'
             [e, w] = validatePluginCommand(cmd, context, index);
             errors = [errors, e];
             warnings = [warnings, w];
-            
+
         otherwise
-            errors{end+1} = sprintf('%s command %d has invalid type: %s', ...
+            errors{end+1} = sprintf('%s command %d has unrecognized type: "%s"', ...
                 context, index, cmd.type);
     end
 end
 
+% -------------------------------------------------------------------------
+
 function [errors, warnings] = validateControllerCommand(cmd, context, index)
     errors = {};
     warnings = {};
-    
+
     if ~isfield(cmd, 'command_name')
-        errors{end+1} = sprintf('%s controller command %d missing command_name', ...
-            context, index);
+        errors{end+1} = sprintf('%s controller command %d missing command_name', context, index);
         return;
     end
-    
+
     cmdName = cmd.command_name;
-    
-    % Command-specific parameter validation
+
     switch cmdName
         case 'allOn'
             % No parameters needed
-            
+
         case 'allOff'
             % No parameters needed
-            
+
         case 'stopDisplay'
             % No parameters needed
-            
+
         case 'setPositionX'
             if ~isfield(cmd, 'posX')
                 errors{end+1} = sprintf('%s setPositionX command missing posX parameter', context);
             elseif ~isnumeric(cmd.posX) || cmd.posX < 0
-                errors{end+1} = sprintf('%s setPositionX posX must be non-negative', context);
+                errors{end+1} = sprintf('%s setPositionX posX must be a non-negative number', context);
             end
-            
+
         case 'setColorDepth'
             if ~isfield(cmd, 'gs_val')
                 errors{end+1} = sprintf('%s setColorDepth command missing gs_val parameter', context);
             elseif ~ismember(cmd.gs_val, [2, 16])
-                errors{end+1} = sprintf('%s setColorDepth gs_val must be 2 or 16', context);
+                errors{end+1} = sprintf('%s setColorDepth gs_val must be 2 or 16 (got %d)', ...
+                    context, cmd.gs_val);
             end
-            
+
         case {'startG41Trial', 'trialParams'}
-            % Validate all required trial parameters
             requiredFields = {'mode', 'pattern', 'pattern_ID', 'frame_index', ...
                 'duration', 'frame_rate', 'gain'};
-            
+
             for i = 1:length(requiredFields)
                 field = requiredFields{i};
                 if ~isfield(cmd, field)
-                    errors{end+1} = sprintf('%s trial command missing %s parameter', ...
-                        context, field);
+                    errors{end+1} = sprintf('%s trial command (command %d) missing required field: %s', ...
+                        context, index, field);
                 end
             end
-            
-            % Mode validation
-            if isfield(cmd, 'mode')
-                if ~ismember(cmd.mode, [2, 3, 4])
-                    errors{end+1} = sprintf('%s trial mode must be 2, 3, or 4 (got %d)', ...
-                        context, cmd.mode);
-                end
+
+            % Mode validation (G4.1 supports modes 2, 3, 4)
+            if isfield(cmd, 'mode') && ~ismember(cmd.mode, [2, 3, 4])
+                errors{end+1} = sprintf('%s trial mode must be 2, 3, or 4 (got %d)', ...
+                    context, cmd.mode);
             end
-            
-            % Duration validation
+
+            % Duration validation (in seconds)
             if isfield(cmd, 'duration')
                 if cmd.duration <= 0
-                    errors{end+1} = sprintf('%s trial duration must be positive', context);
+                    errors{end+1} = sprintf('%s trial duration must be positive (got %.2f s)', ...
+                        context, cmd.duration);
                 elseif cmd.duration > 3600
-                    warnings{end+1} = sprintf('%s trial duration very long: %.1fs', ...
+                    warnings{end+1} = sprintf('%s trial duration is very long: %.1f s', ...
                         context, cmd.duration);
                 end
             end
-            
+
         otherwise
-            warnings{end+1} = sprintf('%s uses unknown controller command: %s', ...
+            warnings{end+1} = sprintf('%s uses unrecognized controller command: "%s"', ...
                 context, cmdName);
     end
 end
 
+% -------------------------------------------------------------------------
+
 function [errors, warnings] = validateWaitCommand(cmd, context, index)
     errors = {};
     warnings = {};
-    
+
     if ~isfield(cmd, 'duration')
         errors{end+1} = sprintf('%s wait command %d missing duration', context, index);
-    elseif ~isnumeric(cmd.duration) || cmd.duration < 0
-        errors{end+1} = sprintf('%s wait command %d duration must be non-negative', ...
+        return;
+    end
+
+    if ~isnumeric(cmd.duration) || cmd.duration < 0
+        errors{end+1} = sprintf('%s wait command %d duration must be a non-negative number', ...
             context, index);
-    elseif cmd.duration > 60000  % 1 minute in milliseconds
-        warnings{end+1} = sprintf('%s wait command %d has very long duration: %d ms', ...
+    elseif cmd.duration > 300  % 5 minutes in seconds
+        warnings{end+1} = sprintf('%s wait command %d has very long duration: %.1f s', ...
             context, index, cmd.duration);
     end
 end
 
+% -------------------------------------------------------------------------
+
 function [errors, warnings] = validatePluginCommand(cmd, context, index)
     errors = {};
     warnings = {};
-    
+
     if ~isfield(cmd, 'plugin_name')
-        errors{end+1} = sprintf('%s plugin command %d missing plugin_name', ...
-            context, index);
+        errors{end+1} = sprintf('%s plugin command %d missing plugin_name', context, index);
         return;
     end
-    
-    % Special validation for log command
+
+    % Validate log command specifically (known params)
     if isfield(cmd, 'command_name') && strcmpi(cmd.command_name, 'log')
-        % Validate params field exists
         if ~isfield(cmd, 'params')
-            errors{end+1} = sprintf('%s plugin command %d: log command requires params field', ...
+            errors{end+1} = sprintf('%s plugin command %d: log command requires a params field', ...
                 context, index);
             return;
         end
-        
-        % Validate message field exists
         if ~isfield(cmd.params, 'message')
             errors{end+1} = sprintf('%s plugin command %d: log command requires params.message', ...
                 context, index);
             return;
         end
-        
-        % Validate message is a non-empty string
         if ~ischar(cmd.params.message) && ~isstring(cmd.params.message)
             errors{end+1} = sprintf('%s plugin command %d: log message must be a string', ...
                 context, index);
         elseif isempty(strtrim(char(cmd.params.message)))
             errors{end+1} = sprintf('%s plugin command %d: log message cannot be empty', ...
                 context, index);
-        else
-            % Check message length (max 2000 characters for safety)
-            msg = char(cmd.params.message);
-            if length(msg) > 2000
-                errors{end+1} = sprintf('%s plugin command %d: log message exceeds 2000 character limit (%d characters)', ...
-                    context, index, length(msg));
-            end
+        elseif length(char(cmd.params.message)) > 2000
+            errors{end+1} = sprintf('%s plugin command %d: log message exceeds 2000 character limit (%d chars)', ...
+                context, index, length(char(cmd.params.message)));
         end
-        
-        % Validate level parameter if provided
         if isfield(cmd.params, 'level')
             valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR'};
-            level = upper(char(cmd.params.level));
-            if ~ismember(level, valid_levels)
-                errors{end+1} = sprintf('%s plugin command %d: invalid log level "%s" (must be DEBUG, INFO, WARNING, or ERROR)', ...
+            if ~ismember(upper(char(cmd.params.level)), valid_levels)
+                errors{end+1} = sprintf('%s plugin command %d: invalid log level "%s"', ...
                     context, index, cmd.params.level);
             end
         end
-        
-        return;  % Log command validation complete
     end
-    
-    % Note: Further plugin command validation (command_name, params) happens at runtime
-    % based on plugin type, which is determined from plugin definitions
+
+    % Further plugin command validation (command_name params) happens at runtime
+    % based on plugin type, which requires a running plugin instance.
 end
+
+% -------------------------------------------------------------------------
 
 function [errors, warnings] = validatePatternFiles(protocol, resolvedPatternPaths, verbose)
     errors = {};
     warnings = {};
-    
+
     if verbose
         fprintf('  Validating %d pattern file(s)...\n', length(resolvedPatternPaths));
     end
-    
-    % Validate each pattern file exists and is readable
+
+    % Check existence and readability
     missing_patterns = {};
     readable_patterns = {};
-    
+
     for i = 1:length(resolvedPatternPaths)
         fullPath = resolvedPatternPaths{i};
-        
-        % Check existence
+
         if ~exist(fullPath, 'file')
             missing_patterns{end+1} = fullPath; %#ok<AGROW>
             continue;
         end
-        
-        % Check readability
-        try
-            fid = fopen(fullPath, 'r');
-            if fid == -1
-                errors{end+1} = sprintf('Cannot read pattern file: %s', fullPath); %#ok<AGROW>
-            else
-                fclose(fid);
-                readable_patterns{end+1} = fullPath; %#ok<AGROW>
-            end
-        catch ME
-            errors{end+1} = sprintf('Error accessing pattern file %s: %s', ...
-                fullPath, ME.message); %#ok<AGROW>
+
+        fid = fopen(fullPath, 'r');
+        if fid == -1
+            errors{end+1} = sprintf('Pattern file exists but cannot be read: %s', fullPath);
+        else
+            fclose(fid);
+            readable_patterns{end+1} = fullPath; %#ok<AGROW>
         end
     end
-    
-    % Report missing patterns
+
     if ~isempty(missing_patterns)
         for i = 1:length(missing_patterns)
-            errors{end+1} = sprintf('Pattern file not found: %s', missing_patterns{i}); %#ok<AGROW>
+            errors{end+1} = sprintf('Pattern file not found: %s', missing_patterns{i});
         end
     end
-    
-    if verbose && isempty(errors)
-        fprintf('  ✓ All pattern files exist and readable\n');
+
+    if verbose && isempty(missing_patterns)
+        fprintf('  ✓ All pattern files exist and are readable\n');
     end
-    
-    % Validate pattern dimensions match arena configuration
+
+    % Validate pattern dimensions against arena configuration
     if ~isempty(readable_patterns)
         if verbose
             fprintf('  Validating pattern dimensions...\n');
         end
-        
+
+        % Use installed columns for dimension check — partial arenas have fewer
+        % columns than num_cols implies. derivedConfig.num_columns_installed
+        % accounts for columns_installed; falls back to num_cols for full arenas.
+        if isfield(protocol, 'derivedConfig') && ~isempty(protocol.derivedConfig) && ...
+                isfield(protocol.derivedConfig, 'num_columns_installed')
+            effectiveCols = protocol.derivedConfig.num_columns_installed;
+        else
+            effectiveCols = protocol.arenaConfig.num_cols;
+        end
+
+        numRows = protocol.arenaConfig.num_rows;
+
         try
-            maDisplayTools.validate_all_patterns(readable_patterns, ...
-                protocol.arenaConfig.num_rows, ...
-                protocol.arenaConfig.num_cols);
-            
+            maDisplayTools.validate_all_patterns(readable_patterns, numRows, effectiveCols);
+
             if verbose
                 fprintf('  ✓ All patterns match arena dimensions (%dx%d panels)\n', ...
-                    protocol.arenaConfig.num_rows, protocol.arenaConfig.num_cols);
+                    numRows, effectiveCols);
             end
-            
+
         catch ME
             errors{end+1} = sprintf('Pattern dimension validation failed: %s', ME.message);
             if verbose
