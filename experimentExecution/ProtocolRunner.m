@@ -44,7 +44,7 @@ classdef ProtocolRunner < handle
             % Parse inputs
             p = inputParser;
             addRequired(p, 'protocolFilePath', @ischar);
-            addParameter(p, 'arenaIP', @ischar);
+            addParameter(p, 'arenaIP', '', @ischar);
             addParameter(p, 'OutputDir', './experiments', @ischar);
             addParameter(p, 'Verbose', true, @islogical);
             addParameter(p, 'DryRun', false, @islogical);
@@ -55,13 +55,19 @@ classdef ProtocolRunner < handle
             self.outputDir = p.Results.OutputDir;
             self.verbose = p.Results.Verbose;
             self.dryRun = p.Results.DryRun;
-            % self.arenaIP = p.Results.arenaIP;
+            self.arenaIP = p.Results.arenaIP;
             
             % Initialize (validation only at construction)
             self.validateEnvironment();
             self.parseProtocol();
-
-            self.arenaIP = self.protocolData.rigConfig.controller.host;
+            if isempty(self.arenaIP)
+                self.arenaIP = self.protocolData.controllerConfig.host;
+            end
+            if isempty(self.arenaIP)
+                error('ProtocolRunner:NoArenaIP', ...
+                'No arena IP address found. Provide one via the ''arenaIP'' argument ' ...
+                'or add controller.host to your rig config YAML.');
+            end
 
             %self.extractPatternMapping();
         end
