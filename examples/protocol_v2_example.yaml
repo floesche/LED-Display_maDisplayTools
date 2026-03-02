@@ -10,7 +10,7 @@ experiment_info:
   name: "Multi-Plugin Visual Stimulus Experiment"
   date_created: "2024-01-15"
   author: "Research Lab"
-  pattern_library:
+  pattern_library: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/patterns/reference/G41_2x12_cw'
 
 # ============================================================================
 # ARENA CONFIGURATION
@@ -117,7 +117,7 @@ pretrial:
     # Display a test pattern to verify arena
     - type: "controller"
       command_name: "trialParams"
-      pattern: './patterns/pat0001_test_grid.pat'
+      pattern: 'pat01_sq_grating_30deg_gs2_G4.pat'
       pattern_ID: 1
       duration: 2  # 2 seconds
       mode: 2  # position mode
@@ -135,7 +135,7 @@ pretrial:
 block:
   conditions:
     # Condition 1: Vertical bars moving right
-    - id: "vertical_bars_right"
+    - id: "sq grating 30deg gs16"
       commands:
         # Start recording
         - type: "plugin"
@@ -146,7 +146,7 @@ block:
           plugin_name: "camera"
           command_name: "setVideoFile"
           params:
-            filename: "vertical_bars_right.avi"
+            filename: "sqGrating_30deg_gs16.avi"
         
         # Start DAQ
         - type: "plugin"
@@ -165,7 +165,7 @@ block:
         # Display pattern
         - type: "controller"
           command_name: "trialParams"
-          pattern: './patterns/pat0002_vertical_bars.pat'
+          pattern: 'pat02_sq_grating_30deg_gs16_G4.pat'
           pattern_ID: 2
           duration: 5  # 5 seconds
           mode: 2  # closed-loop mode
@@ -183,7 +183,7 @@ block:
           command_name: "stopCapture"
     
     # Condition 2: Horizontal bars moving up
-    - id: "horizontal_bars_up"
+    - id: "Sq grating 60Deg gs2"
       commands:
         - type: "plugin"
           plugin_name: "camera"
@@ -193,7 +193,7 @@ block:
           plugin_name: "camera"
           command_name: "setVideoFile"
           params:
-            filename: "horizontal_bars_up.avi"
+            filename: "SqGrating_60Deg_gs2.avi"
         
         - type: "plugin"
           plugin_name: "temperature"
@@ -208,7 +208,7 @@ block:
         
         - type: "controller"
           command_name: "trialParams"
-          pattern: './patterns/pat0003_horizontal_bars.pat'
+          pattern: 'pat03_sq_grating_60deg_gs2_G4.pat'
           pattern_ID: 3
           duration: 5
           mode: 2
@@ -225,7 +225,7 @@ block:
           command_name: "stopCapture"
     
     # Condition 3: Checkerboard pattern (static)
-    - id: "checkerboard_static"
+    - id: "Sq Grating 60Deg gs16"
       commands:
         - type: "plugin"
           plugin_name: "camera"
@@ -235,7 +235,7 @@ block:
           plugin_name: "camera"
           command_name: "setVideoFile"
           params:
-            filename: "checkerboard.avi"
+            filename: "SqGrating_60Deg_gs16.avi"
         
         - type: "plugin"
           plugin_name: "temperature"
@@ -250,7 +250,7 @@ block:
         
         - type: "controller"
           command_name: "trialParams"
-          pattern: './patterns/pat0004_checkerboard.pat'
+          pattern: 'pat04_sq_grating_60deg_gs16_G4.pat'
           pattern_ID: 4
           duration: 3  # 3 seconds
           mode: 2  # position mode (static)
@@ -267,7 +267,7 @@ block:
           command_name: "stopCapture"
     
     # Condition 4: Expanding grating
-    - id: "expanding_grating"
+    - id: "Sine grating 30deg gs16"
       commands:
         - type: "plugin"
           plugin_name: "camera"
@@ -277,7 +277,7 @@ block:
           plugin_name: "camera"
           command_name: "setVideoFile"
           params:
-            filename: "expanding_grating.avi"
+            filename: "SineGrating_30Deg_gs16.avi"
         
         - type: "plugin"
           plugin_name: "temperature"
@@ -292,7 +292,7 @@ block:
         
         - type: "controller"
           command_name: "trialParams"
-          pattern: './patterns/pat0005_expanding_grating.pat'
+          pattern: 'pat05_sine_grating_30deg_gs16_G4.pat'
           pattern_ID: 5
           duration: 4  # 4 seconds
           mode: 2
@@ -361,7 +361,7 @@ intertrial:
     # Reset to baseline pattern
     - type: "controller"
       command_name: "trialParams"
-      pattern: './patterns/pat0006_uniform_gray.pat'
+      pattern: 'pat06_sine_grating_60deg_gs16_G4.pat'
       pattern_ID: 6
       duration: 2  # 2 second inter-trial interval
       mode: 2
@@ -405,7 +405,7 @@ posttrial:
     # Display completion message pattern
     - type: "controller"
       command_name: "trialParams"
-      pattern: './patterns/pat0007_complete.pat'
+      pattern: 'pat07_sine_grating_30deg_fine_gs16_G4.pat'
       pattern_ID: 7
       duration: 2
       mode: 2

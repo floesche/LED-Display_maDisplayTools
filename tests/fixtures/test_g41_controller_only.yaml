@@ -8,7 +8,7 @@ experiment_info:
   name: "G4.1 Controller-Only Test"
   date_created: "2026-02-11"
   author: "Test Suite"
-  pattern_library: ''
+  pattern_library: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/patterns/reference/G41_2x12_cw'
 
 rig: 'maDisplayTools/configs/rigs/test_rig_1.yaml'  #UPDATE THIS BEFORE RUNNING
 
@@ -30,11 +30,11 @@ pretrial:
 
 block:
   conditions:
-    - id: "pattern_A"
+    - id: "Sq Grating 30deg"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: 'pat0001_test.pat'
+          pattern: 'pat01_sq_grating_30deg_gs2_G4.pat'
           pattern_ID: 1
           duration: 2
           mode: 2
@@ -42,12 +42,12 @@ block:
           frame_rate: 60
           gain: 0
 
-    - id: "pattern_B"
+    - id: "Sine Grating 30Deg"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: 'pat0002_test.pat'
-          pattern_ID: 2
+          pattern: 'pat05_sine_grating_30deg_gs16_G4.pat'
+          pattern_ID: 5
           duration: 1
           mode: 2
           frame_index: 1
