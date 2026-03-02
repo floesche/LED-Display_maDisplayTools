@@ -83,8 +83,8 @@ classdef PluginManager < handle
             % Input Arguments:
             %   pluginName - Plugin identifier string
             %   varargin - Additional arguments depend on plugin type:
-            %              For SerialPlugin: 'command', commandName
-            %              For ClassPlugin: 'method', methodName, 'params', params
+            %              For SerialPlugin: commandName, params
+            %              For ClassPlugin: methodName, params
             %              For ScriptPlugin: (no additional args)
             %
             % Returns:
@@ -104,7 +104,7 @@ classdef PluginManager < handle
                 pluginName = pluginNames{i};
                 try
                     plugin = self.pluginRegistry(pluginName);
-                    plugin.close();
+                    plugin.cleanup();
                     self.logger.log('INFO', sprintf('  ✓ Closed plugin: %s', pluginName));
                 catch ME
                     self.logger.log('WARNING', sprintf('  ✗ Failed to close plugin %s: %s', ...

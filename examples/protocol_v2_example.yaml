@@ -54,6 +54,11 @@ plugins:
       sample_rate: 1000
       # This is needed because it's not included in the rig yaml
 
+  - name: "backlight"
+    type: "class"
+    matlab:
+      class: "maDisplayTools.plugins.LEDControllerPlugin"
+
   # Script Plugin - Custom preprocessing
   - name: "preprocessing"
     type: "script"
@@ -155,7 +160,7 @@ block:
         
         # Pulse LED to mark trial start
         - type: "plugin"
-          plugin_name: "led_controller"
+          plugin_name: "backlight"
           command_name: "pulse"
         
         # Wait 50ms
@@ -200,7 +205,7 @@ block:
           command_name: "startAcquisition"
         
         - type: "plugin"
-          plugin_name: "led_controller"
+          plugin_name: "backlight"
           command_name: "pulse"
         
         - type: "wait"
@@ -242,7 +247,7 @@ block:
           command_name: "startAcquisition"
         
         - type: "plugin"
-          plugin_name: "led_controller"
+          plugin_name: "backlight"
           command_name: "pulse"
         
         - type: "wait"
@@ -284,7 +289,7 @@ block:
           command_name: "startAcquisition"
         
         - type: "plugin"
-          plugin_name: "led_controller"
+          plugin_name: "backlight"
           command_name: "pulse"
         
         - type: "wait"
@@ -326,7 +331,7 @@ block:
           command_name: "startAcquisition"
         
         - type: "plugin"
-          plugin_name: "led_controller"
+          plugin_name: "backlight"
           command_name: "pulse"
         
         # Turn off arena
@@ -399,7 +404,7 @@ posttrial:
       command_name: "off"
     
     - type: "plugin"
-      plugin_name: "led_controller"
+      plugin_name: "backlight"
       command_name: "off"
     
     # Display completion message pattern

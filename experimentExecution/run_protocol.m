@@ -30,7 +30,7 @@ function run_protocol(protocolFilePath, varargin)
 %   - All plugins and scripts must be on MATLAB path
 %
 % See also: ProtocolRunner
-    [yamlLocation, yamlFilename, ~] = fileparts(protocolFilePath);
+    [yamlLocation, ~, ~] = fileparts(protocolFilePath);
     if isempty(yamlLocation)
         yamlLocation = '.';
     end

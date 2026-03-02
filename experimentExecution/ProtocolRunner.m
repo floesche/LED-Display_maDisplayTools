@@ -299,7 +299,7 @@ classdef ProtocolRunner < handle
         function initializePlugins(self)
             % Initialize all plugins defined in protocol
             
-            if ~isfield(self.protocolData, 'plugins')
+            if isempty(self.protocolData.plugins)
                 self.logger.log('INFO', 'No plugins defined in protocol');
                 self.pluginManager = PluginManager(self.logger);
                 return;
@@ -369,9 +369,13 @@ classdef ProtocolRunner < handle
             reps = self.protocolData.experimentStructure.repetitions;
             
             % Get randomization settings
-            randSettings.enabled = self.protocolData.experimentStructure.randomization.enabled;
-            randSettings.seed = self.protocolData.experimentStructure.randomization.seed;
-            randSettings.method = self.protocolData.experimentStructure.randomization.method;
+            if isfield(self.protocolData.experimentStructure, 'randomization') && ...
+                isfield(self.protocolData.experimentStructure.randomization, 'enabled')
+                randSettings.enabled = self.protocolData.experimentStructure.randomization.enabled;
+            else
+                randSettings.enabled = false;
+            end
+           
               
             % Create base condition list
             numConditions = length(conditions);
@@ -391,6 +395,8 @@ classdef ProtocolRunner < handle
             trialCounter = 0;
             
             if randSettings.enabled
+                randSettings.seed = self.protocolData.experimentStructure.randomization.seed;
+                randSettings.method = self.protocolData.experimentStructure.randomization.method;
                 % Set random seed if specified
                 if ~isempty(randSettings.seed) && ~isnan(randSettings.seed)
                     rng(randSettings.seed);

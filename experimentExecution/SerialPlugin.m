@@ -238,9 +238,13 @@ classdef SerialPlugin < handle
             % Throws:
             %   Error if required fields are missing
             
-            if ~isfield(self.definition, 'port')
+            hasPort = isfield(self.definition, 'port') || ...
+              isfield(self.definition, 'port_windows') || ...
+              isfield(self.definition, 'port_posix');
+            if ~hasPort
                 error('SerialPlugin:MissingField', ...
-                    'Plugin "%s" missing required field: port', self.name);
+                'Plugin "%s" must define at least one port field (port, port_windows, or port_posix)', ...
+                self.name);
             end
             
             if ~isfield(self.definition, 'commands')
@@ -258,7 +262,13 @@ classdef SerialPlugin < handle
             % Extract configuration from YAML definition
             
             % Required: port
-            self.port = self.definition.port;
+            if ispc() && isfield(self.definition, 'port_windows')
+                self.port = self.definition.port_windows;
+            elseif ~ispc() && isfield(self.definition, 'port_posix')
+                self.port = self.definition.port_posix;
+            else
+                self.port = self.definition.port;
+            end
             
             % Optional: baudrate (default 9600)
             if isfield(self.definition, 'baudrate')
@@ -274,7 +284,7 @@ classdef SerialPlugin < handle
                 self.isCritical = true;
             end
 
-            if isfield(self.definition.config, 'experimentDir')
+            if isfield(self.definition, 'config') && isfield(self.definition.config, 'experimentDir')
                 self.experimentDir = self.definition.config.experimentDir;
             else
                 self.experimentDir = pwd;

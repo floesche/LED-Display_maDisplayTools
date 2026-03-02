@@ -108,7 +108,7 @@ classdef CommandExecutor < handle
                         self.logger.log('INFO', sprintf('set color depth success: %d', suc));
                     end
 
-                case 'startG41Trial'
+                case 'trialParams'
                     if ~isfield(command, 'mode') 
                         self.logger.log('ERROR', sprintf('start G41 Trial failed due to missing mode'));
                         error('mode parameter missing, cannot execute startG41Trial');
@@ -144,7 +144,7 @@ classdef CommandExecutor < handle
                                     pause(dur);
 
                                 case 4
-                                    required_fields = {'pattern', 'pattern_ID', 'frame_position', 'duration', 'gain'};
+                                    required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'gain'};
                                     self.check_required_fields(command, required_fields);
                                     [~, pattern_name] = fileparts(command.pattern);
                                     %patID = CommandExecutor.getPatternID(pattern_name);
@@ -225,10 +225,14 @@ classdef CommandExecutor < handle
                     end
                     
                     commandName = command.command_name;
+
                     self.logger.log('DEBUG', sprintf('  Serial command: %s', commandName));
-                    
-                    self.pluginManager.executePluginCommand(pluginID, ...
-                                                          'command', commandName);
+                    if isfield(command, 'params')
+                        params = command.params;
+                        self.pluginManager.executePluginCommand(pluginID, commandName, params);
+                    else
+                        self.pluginManager.executePluginCommand(pluginID, commandName);
+                    end
                     
                 case 'class'
                     if ~isfield(command, 'command_name')
@@ -240,12 +244,9 @@ classdef CommandExecutor < handle
                     
                     if isfield(command, 'params')
                         params = command.params;
-                        self.pluginManager.executePluginCommand(pluginID, ...
-                                                              'method', methodName, ...
-                                                              'params', params);
+                        self.pluginManager.executePluginCommand(pluginID, methodName, params);
                     else
-                        self.pluginManager.executePluginCommand(pluginID, ...
-                                                              'method', methodName);
+                        self.pluginManager.executePluginCommand(pluginID, methodName);
                     end
                     
                 case 'script'
