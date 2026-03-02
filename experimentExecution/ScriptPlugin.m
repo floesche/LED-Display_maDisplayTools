@@ -63,14 +63,6 @@ classdef ScriptPlugin < handle
             % Validate required fields
             self.validateDefinition();
             
-            % Initialize the script/function
-            try
-                self.initialize();
-            catch ME
-                self.logger.log('ERROR', sprintf('[%s] Failed to initialize: %s', ...
-                    self.name, ME.message));
-                rethrow(ME);
-            end
         end
         
         function result = execute(self, params)

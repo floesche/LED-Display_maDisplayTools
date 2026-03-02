@@ -7,7 +7,6 @@ classdef CommandExecutor < handle
     properties (Access = private)
         arenaController     % Arena hardware controller
         pluginManager       % PluginManager instance
-        patternIDMap        % containers.Map: pattern path -> ID
         logger              % ExperimentLogger instance
     end
     
@@ -16,12 +15,10 @@ classdef CommandExecutor < handle
             % Input Arguments:
             %   arenaController - Arena hardware controller object
             %   pluginManager - PluginManager instance
-            %   patternIDMap - Map of pattern paths to IDs
             %   logger - ExperimentLogger instance
             
             self.arenaController = arenaController;
             self.pluginManager = pluginManager;
-            %self.patternIDMap = patternIDMap;
             self.logger = logger;
         end
         
@@ -119,7 +116,6 @@ classdef CommandExecutor < handle
                                 case 2
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'frame_rate'};
                                     self.check_required_fields(command, required_fields);
-                                    [~, pattern_name] = fileparts(command.pattern);
                                     %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
@@ -133,8 +129,6 @@ classdef CommandExecutor < handle
                                 case 3
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration'};
                                     self.check_required_fields(command, required_fields);
-                                    
-                                    [~, pattern_name] = fileparts(command.pattern);
                                     %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
@@ -146,7 +140,6 @@ classdef CommandExecutor < handle
                                 case 4
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'gain'};
                                     self.check_required_fields(command, required_fields);
-                                    [~, pattern_name] = fileparts(command.pattern);
                                     %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
@@ -175,7 +168,7 @@ classdef CommandExecutor < handle
             % Pause execution
             %
             % Command fields:
-            %   duration - Wait duration in milliseconds
+            %   duration - Wait duration in seconds
             
             if ~isfield(command, 'duration')
                 error('Wait command missing ''duration'' field');
@@ -183,7 +176,7 @@ classdef CommandExecutor < handle
             
             duration = command.duration;
             
-            self.logger.log('INFO', sprintf('Wait command: %d ms', duration));
+            self.logger.log('INFO', sprintf('Wait command: %d s', duration));
             
             % Convert milliseconds to seconds and pause
             pause(duration);

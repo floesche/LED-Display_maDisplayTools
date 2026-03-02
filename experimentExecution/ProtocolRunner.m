@@ -17,7 +17,6 @@ classdef ProtocolRunner < handle
         commandExecutor         % CommandExecutor instance
         parser                  % ProtocolParser instance
         logger                  % ExperimentLogger instance
-        patternIDMap            % containers.Map: pattern path -> ID
         trialExecutionOrder     % Array of trial metadata structs
         outputDir               % Base output directory
         experimentDir           % Specific experiment directory (timestamped)
@@ -216,39 +215,6 @@ classdef ProtocolRunner < handle
                 error('Failed to parse protocol file: %s', ME.message);
             end
         end
-        
-        
-        %function extractPatternMapping(self)
-            % Extract pattern path -> ID mapping
-            
-        %     self.patternIDMap = containers.Map();
-        % 
-        %     if isfield(self.protocolData, 'pattern_mapping')
-        %         if self.verbose
-        %             fprintf('Extracting pattern ID mapping...\n');
-        %         end
-        % 
-        %         % Convert pattern_mapping struct to containers.Map
-        %         mapping = self.protocolData.pattern_mapping;
-        %         paths = fieldnames(mapping);
-        % 
-        %         for i = 1:length(paths)
-        %             path = paths{i};
-        %             id = mapping.(path);
-        %             self.patternIDMap(path) = id;
-        % 
-        %             if self.verbose
-        %                 fprintf('  Pattern ID %d: %s\n', id, path);
-        %             end
-        %         end
-        % 
-        %         if self.verbose
-        %             fprintf('  ✓ Loaded %d pattern mappings\n', self.patternIDMap.Count);
-        %         end
-        %     else
-        %         warning('No pattern_mapping found in protocol');
-        %     end
-        % end
         
         function initializeExperiment(self)
             % Initialize all components for execution
