@@ -1,4 +1,4 @@
-function run_protocol(protocolFilePath, arenaIP, varargin)
+function run_protocol(protocolFilePath, varargin)
 % RUN_PROTOCOL Execute a G4.1 display experiment from a YAML protocol file
 %
 % Syntax:
@@ -14,14 +14,15 @@ function run_protocol(protocolFilePath, arenaIP, varargin)
 %   protocolFilePath - Path to the YAML protocol file (required)
 %
 % Name-Value Pairs:
+%   'arenaIP' - an arena IP address if different from the config yaml.
 %   'OutputDir' - Base directory for experiment outputs (default: './experiments')
 %   'Verbose' - Enable verbose logging (default: true)
 %   'DryRun' - Validate protocol without executing (default: false)
 %
 % Example:
-%   run_protocol('protocol.yaml', '127.0.0.1')
-%   run_protocol('protocol.yaml', '127.0.0.1', 'OutputDir', './my_experiments')
-%   run_protocol('protocol.yaml', '127.0.0.1', 'Verbose', false, 'DryRun', true)
+%   run_protocol('protocol.yaml')
+%   run_protocol('protocol.yaml', 'OutputDir', './my_experiments')
+%   run_protocol('protocol.yaml', 'arenaIP', '127.0.0.1', 'Verbose', false, 'DryRun', true)
 %
 % Notes:
 %   - Pattern files must be manually copied to SD card before running
@@ -36,11 +37,11 @@ function run_protocol(protocolFilePath, arenaIP, varargin)
     % Parse input arguments
     p = inputParser;
     addRequired(p, 'protocolFilePath', @(x) ischar(x) || isstring(x));
-    addRequired(p, 'arenaIP', @ischar);
+    addParameter(p, 'arenaIP', '', @ischar);
     addParameter(p, 'OutputDir', yamlLocation, @(x) ischar(x) || isstring(x));
     addParameter(p, 'Verbose', true, @islogical);
     addParameter(p, 'DryRun', false, @islogical);
-    parse(p, protocolFilePath, arenaIP, varargin{:});
+    parse(p, protocolFilePath, varargin{:});
     
     % Convert to char if string
     protocolFilePath = char(p.Results.protocolFilePath);
@@ -52,7 +53,8 @@ function run_protocol(protocolFilePath, arenaIP, varargin)
     end
     
     % Create and configure protocol runner
-    runner = ProtocolRunner(protocolFilePath, arenaIP, ...
+    runner = ProtocolRunner(protocolFilePath, ...
+                           'arenaIP', p.Results.arenaIP, ...
                            'OutputDir', outputDir, ...
                            'Verbose', p.Results.Verbose, ...
                            'DryRun', p.Results.DryRun);

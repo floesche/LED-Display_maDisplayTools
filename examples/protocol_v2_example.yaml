@@ -15,7 +15,7 @@ experiment_info:
 # ============================================================================
 # ARENA CONFIGURATION
 # ============================================================================
-rig: './configs/rigs/test_rig_1.yaml' # UPDATE THIS BEFORE USE
+rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/test_rig_1.yaml' # UPDATE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
