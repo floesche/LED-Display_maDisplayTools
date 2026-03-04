@@ -22,6 +22,8 @@ classdef ProtocolRunner < handle
         experimentDir           % Specific experiment directory (timestamped)
         verbose                 % Verbose logging flag
         dryRun                  % Dry run mode (validate only)
+        maxAttempts             % Max times to attempt a command before aborting. Default 2
+        recoverableErrors
     end
     
     methods (Access = public)
@@ -47,6 +49,7 @@ classdef ProtocolRunner < handle
             addParameter(p, 'OutputDir', './experiments', @ischar);
             addParameter(p, 'Verbose', true, @islogical);
             addParameter(p, 'DryRun', false, @islogical);
+            addParameter(p, 'MaxAttempts', 2, @(x) isnumeric(x) && x >= 1);
             parse(p, protocolFilePath, varargin{:});
             
             % Store configuration
@@ -55,6 +58,12 @@ classdef ProtocolRunner < handle
             self.verbose = p.Results.Verbose;
             self.dryRun = p.Results.DryRun;
             self.arenaIP = p.Results.arenaIP;
+            self.maxAttempts = p.Results.maxAttempts;
+            self.recoverableErrors = {
+                'CommandExecutor:HardwareFailure', ...
+                'SerialPlugin:NotConnected', ...
+                'SerialPlugin:CriticalFailure'
+            };
             
             % Initialize (validation only at construction)
             self.validateEnvironment();
@@ -64,8 +73,8 @@ classdef ProtocolRunner < handle
             end
             if isempty(self.arenaIP)
                 error('ProtocolRunner:NoArenaIP', ...
-                'No arena IP address found. Provide one via the ''arenaIP'' argument ' ...
-                'or add controller.host to your rig config YAML.');
+                ['No arena IP address found. Provide one via the ''arenaIP'' argument ' ...
+                'or add controller.host to your rig config YAML.']);
             end
 
             %self.extractPatternMapping();
@@ -491,8 +500,36 @@ classdef ProtocolRunner < handle
                 % Find condition definition
                 conditionDef = self.findConditionByID(trial.conditionID);
                 
-                % Execute trial commands
-                self.executeTrial(trial, conditionDef);
+                               % Execute trial commands
+                while ~success && attempt <= self.maxAttempts
+                    try
+
+                        self.executeTrial(trial, conditionDef);
+                        success = 1;
+                    catch ME
+                        if attempt < self.maxAttempts
+                            attempt = attempt + 1;
+                            if ismember(ME.identifier, self.recoverableErrors)
+                                switch ME.identifier
+
+                                    case 'CommandExecutor:HardwareFailure'
+                                        msg = sprintf(['\n*** Arena hardware failure ***\n' ...
+                       'Command "%s" received no confirmation from the arena.\n' ...
+                       'Please restart the arena controller and wait for it to come back online.\n' ...
+                       'Press Enter when ready to retry...'], ME.message);
+                                    case {'SerialPlugin:NotConnected', 'SerialPlugin:CriticalFailure'}
+                                        msg = sprintf(['\n*** Serial device failure ***\n' ...
+                       'A serial device lost its connection mid-experiment.\n' ...
+                       'Please check the device connection and press Enter to retry...']);
+                                end
+                                input(msg);
+                            end
+                            
+                        else
+                            rethrow(ME);
+                        end
+                    end
+                end
                 
                 % Execute intertrial (if not last trial and intertrial exists)
                 if trialIdx < numTrials && hasIntertrial

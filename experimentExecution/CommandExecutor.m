@@ -52,7 +52,7 @@ classdef CommandExecutor < handle
                     
                 otherwise
                     self.logger.log('ERROR', sprintf('Command failed due to unknown command type'));
-                    error('Unknown command type: %s', commandType);
+                    error('CommandExecutor:UnknownCommandType', 'Unknown command type: %s', commandType);
             end
         end
     end
@@ -62,7 +62,7 @@ classdef CommandExecutor < handle
             
             if ~isfield(command, 'command_name')  
                 self.logger.log('ERROR', sprintf('Controller command failed due to missing command name.'));
-                error('Controller command missing ''command_name'' field');
+                error('CommandExecutor:MissingField', 'Controller command missing ''command_name'' field');
             end
 
             commandName = command.command_name;
@@ -74,41 +74,56 @@ classdef CommandExecutor < handle
                     
                 case 'allOn'
                     suc = self.arenaController.allOn();
-                    self.logger.log('INFO', sprintf('all on success: %d', suc));
+                    if ~suc
+                        self.logger.log('ERROR', 'allOn command failed - no confirmation from arena');
+                        error('CommandExecutor:HardwareFailure', 'Controller command failed: allOn');
+                    end
+                    self.logger.log('INFO', 'allOn command succeeded');
                     
                 case 'allOff'
                     suc = self.arenaController.allOff();
-                    self.logger.log('INFO', sprintf('all off success: %d', suc));
+                    if ~suc
+                        self.logger.log('ERROR', 'allOff command failed - no confirmation from arena');
+                        error('CommandExecutor:HardwareFailure', 'Controller command failed: allOff');
+                    end
+                    self.logger.log('INFO', 'allOff command succeeded');
                     
                 case 'stopDisplay'
-                    suc = self.arenaController.stopDisplay(); 
-                    self.logger.log('INFO', sprintf('stop display success: %d', suc));
+                    suc = self.arenaController.stopDisplay();
+                    if ~suc
+                        self.logger.log('ERROR', 'stopDisplay command failed - no confirmation from arena');
+                        error('CommandExecutor:HardwareFailure', 'Controller command failed: stopDisplay');
+                    end
+                    self.logger.log('INFO', 'stopDisplay command succeeded');
 
                 case 'setPositionX'
                     if ~isfield(command, 'posX')
-                        self.logger.log('ERROR', sprintf('setPositionX failed due to missing parameter.'));
-                        error('posX parameter missing, cannot execute setPositionX');
+                        self.logger.log('ERROR', 'setPositionX failed due to missing parameter.');
+                        error('CommandExecutor:MissingParameter', 'posX parameter missing, cannot execute setPositionX');
                     else
                         posX = command.posX;
-                        suc = self.arenaController.setPositionX(posX);
-                        self.logger.log('INFO', sprintf('set position x succes: %d', suc));
+                        self.arenaController.setPositionX(posX);  % no return value
+                        self.logger.log('INFO', 'setPositionX command sent');
                     end
 
                 case 'setColorDepth'
                     if ~isfield(command, 'gs_val')
-                        self.logger.log('ERROR', sprintf('set color depth failed due to missing parameter'));
-                        error('gs_val parameter missing, cannot execute setColorDepth');
-                        
+                        self.logger.log('ERROR', 'setColorDepth failed due to missing parameter');
+                        error('CommandExecutor:MissingParameter', 'gs_val parameter missing, cannot execute setColorDepth');
                     else
                         gs_val = command.gs_val;
                         suc = self.arenaController.setColorDepth(gs_val);
-                        self.logger.log('INFO', sprintf('set color depth success: %d', suc));
+                        if ~suc
+                            self.logger.log('ERROR', 'setColorDepth command failed - no confirmation from arena');
+                            error('CommandExecutor:HardwareFailure', 'Controller command failed: setColorDepth');
+                        end
+                        self.logger.log('INFO', 'setColorDepth command succeeded');
                     end
 
                 case 'trialParams'
                     if ~isfield(command, 'mode') 
                         self.logger.log('ERROR', sprintf('start G41 Trial failed due to missing mode'));
-                        error('mode parameter missing, cannot execute startG41Trial');
+                        error('CommandExecutor:MissingParameter', 'mode parameter missing, cannot execute startG41Trial');
                     else
                         mode = command.mode;
                         if mode > 1 && mode < 5
@@ -116,48 +131,57 @@ classdef CommandExecutor < handle
                                 case 2
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'frame_rate'};
                                     self.check_required_fields(command, required_fields);
-                                    %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
                                     dur = command.duration;
                                     frameRate = command.frame_rate;
 
-                                    self.arenaController.trialParams(2, patID, frameRate, posX, 0, dur*10, false);
+                                    suc = self.arenaController.trialParams(2, patID, frameRate, posX, 0, dur*10, false);
+                                    if ~suc
+                                        self.logger.log('ERROR', 'trialParams (mode 2) failed - no confirmation from arena');
+                                        error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 2');
+                                    end
                                     pause(dur);
                                     
-        
+
                                 case 3
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration'};
                                     self.check_required_fields(command, required_fields);
-                                    %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
                                     dur = command.duration;
 
-                                    self.arenaController.trialParams(3, patID, 0, posX, 0, dur*10, false);
+                                    suc = self.arenaController.trialParams(3, patID, 0, posX, 0, dur*10, false);
+                                    if ~suc
+                                        self.logger.log('ERROR', 'trialParams (mode 3) failed - no confirmation from arena');
+                                        error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 3');
+                                    end
                                     pause(dur);
 
                                 case 4
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'gain'};
                                     self.check_required_fields(command, required_fields);
-                                    %patID = CommandExecutor.getPatternID(pattern_name);
                                     patID = command.pattern_ID;
                                     posX = command.frame_index;
                                     dur = command.duration;
                                     gain = command.gain;
 
-                                    self.arenaController.trialParams(4, patID, 0, posX, gain, dur*10, false);
+                                    suc = self.arenaController.trialParams(4, patID, 0, posX, gain, dur*10, false);
+                                    if ~suc
+                                        self.logger.log('ERROR', 'trialParams (mode 4) failed - no confirmation from arena');
+                                        error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 4');
+                                    end
                                     pause(dur);
                             end
                         else
                             self.logger.log('ERROR', sprintf('start G4.1 trial failed due to unrecognized mode %d', mode));
-                            error('start G4.1 trial failed due to unrecognized mode');
+                            error('CommandExecutor:InvalidParameter', 'start G4.1 trial failed due to unrecognized mode');
                         end
                     end
  
                 otherwise
                     self.logger.log('ERROR', sprintf('command failed due to unknown controller command %s',commandName));
-                    error('Unknown controller command: %s', commandName);
+                    error('CommandExecutor:UnknownCommand', 'Unknown controller command: %s', commandName);
             end
 
             self.logger.log('INFO', sprintf('%s command completed', commandName));
