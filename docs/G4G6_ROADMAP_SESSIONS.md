@@ -2012,3 +2012,75 @@ Two-part session spanning cross-repo work. Web tools: protocol YAML roundtrip CI
 1. Lab test Mar 2: `test_sd_card_deployment('UseRealSD', true)` → controller pattern verification
 2. After lab sign-off: commit all MATLAB changes, close GitHub #16
 3. Lisa: shift testing to reference patterns at `patterns/reference/G41_2x12_cw/`
+
+---
+
+## 2026-03-02: Lab Test — Windows ✅ Mac ❌ + Spotlight Root Dir Investigation
+
+**Focus**: Lab hardware validation of Mac vs Windows SD card workflows
+
+### Lab Test Results
+
+**Windows-prepared SD card**: ✅ All 16 patterns display correctly on G4.1 controller. Pattern IDs match MANIFEST mapping. Full success.
+
+**Mac-prepared SD card**: ❌ Controller shows no patterns. No useful error message from controller firmware.
+
+### SD Card Comparison (byte-level analysis)
+
+Both cards analyzed on Mac with `cmp -s` against source patterns:
+- **Mac card**: 16/16 files byte-exact ✓, dirIndex sequential ✓, MANIFEST valid ✓
+- **Win card**: 16/16 files byte-exact ✓, dirIndex sequential ✓, MANIFEST valid ✓
+- Only differences: MANIFEST.bin checksum (timestamp), MANIFEST.txt source paths, root extras
+
+**Root cause identified**: macOS system directories in FAT32 root
+
+| Directory | Mac card | Win card (at controller test time) |
+|-----------|----------|-----------------------------------|
+| `.Spotlight-V100` | Present | Not present (added later by Mac during analysis) |
+| `.fseventsd` | Present | Not present |
+| `System Volume Information` | Not present | Present (Windows creates this) |
+
+The G4.1 controller firmware tolerates Windows' `System Volume Information` but chokes on macOS' `.Spotlight-V100` (and possibly `.fseventsd`).
+
+### Cleanup Attempts
+
+1. **Removed `.fseventsd`** ✓ — deletable after `mdutil -d` + `mdutil -i off`
+2. **Retested with only `.Spotlight-V100` remaining** → still fails on controller
+3. **Attempted `.Spotlight-V100` deletion** → "Operation not permitted" (macOS SIP + CrowdStrike)
+4. **Tried `diskutil mount nobrowse`** → `.Spotlight-V100` already created during format auto-mount
+5. **Tried format → force unmount → remount nobrowse** → CrowdStrike dissents unmount
+6. **Tried `mkfs.fat` (dosfstools via homebrew)** → raw device permission denied
+7. **`hdiutil create` disk image** → creates clean FAT32 (no Spotlight!) but:
+   - `asr restore` doesn't support FAT32 images
+   - `dd` to raw device needs root
+   - No way to block-copy image to SD card without elevated privileges
+
+### Key Technical Findings
+
+- `hdiutil create -fs "MS-DOS FAT32"` creates a FAT32 image WITHOUT `.Spotlight-V100` (only `.fseventsd`, which is deletable)
+- `diskutil eraseDisk FAT32` always auto-mounts, and macOS creates `.Spotlight-V100` during that mount before any user code can run
+- `.Spotlight-V100` is protected by macOS regardless of Spotlight being disabled
+- CrowdStrike endpoint agent on lab Mac further blocks disk manipulation
+- `dosfstools` (`mkfs.fat`) installed via homebrew but requires root for raw device access
+
+### Current Recommendation
+
+**Format and deploy SD cards on Windows.** All Mac-side software works correctly:
+- Pattern staging, renaming, ordered copy ✓
+- Dot-file cleanup (`._*` AppleDouble) ✓
+- MANIFEST generation ✓
+- Volume name validation ✓
+- Byte-exact file integrity ✓
+
+The ONLY issue is macOS poisoning the FAT32 root directory with undeletable system directories.
+
+### Files Modified
+- `docs/sd_card_deployment_notes.md` — new troubleshooting section for Spotlight issue, changelog
+- `docs/G4G6_ROADMAP.md` — SD card status updated, changelog entry
+- `docs/G4G6_ROADMAP_SESSIONS.md` — this session log
+
+### Future Options (untested)
+1. `mkfs.fat` with sudo/root access for clean FAT32 format
+2. `hdiutil` image → `dd` to SD card with root access
+3. Controller firmware patch to skip hidden/system directory entries
+4. `dosfstools` + `diskutil unmountDisk force` in rapid sequence (may work without CrowdStrike)

@@ -144,7 +144,7 @@ These are started projects that need to be picked up and completed.
 
 ### 3. Cross-Platform SD Card Workflow
 
-**Status**: Functionally complete. Lab validation pending (scheduled Mar 2). See GitHub issue #16.
+**Status**: Windows workflow validated ✅. Mac workflow blocked by macOS Spotlight issue. See GitHub issue #16.
 
 **Problem**: We develop/test on Mac but run experiments on Windows. `prepare_sd_card.m` uses Windows-specific path handling.
 
@@ -158,9 +158,19 @@ These are started projects that need to be picked up and completed.
 - Reference pattern set: 16 patterns at `patterns/reference/G41_2x12_cw/` (standard test set)
 - 5 obsolete test/example scripts removed (replaced by proper test suite)
 
+**Lab Test Results (Mar 2)**:
+- ✅ Windows-prepared SD card: all 16 patterns display correctly on G4.1 controller
+- ❌ Mac-prepared SD card: controller shows no patterns despite byte-exact files
+- Root cause: macOS creates `.Spotlight-V100` in FAT32 root on mount (undeletable — locked by OS + CrowdStrike). This corrupts the G4.1 controller's FAT32 root directory parsing.
+- Both cards verified byte-identical pattern files, correct dirIndex order, valid MANIFESTs
+- Removing `.fseventsd` alone did not fix it; `.Spotlight-V100` is the blocker
+
+**Current Recommendation**: Format and deploy SD cards on Windows. Mac software (staging, manifest, dot-file cleanup) all works correctly — only the FAT32 root directory pollution is the issue.
+
 **To Pick Up**:
-1. **Lab validation (Mar 2)**: Run `test_sd_card_deployment('UseRealSD', true)`, then verify patterns on G4.1 controller → see `docs/lab_test_plan_2026-03-02.md`
-2. After lab sign-off: close GitHub #16, merge SD card phase into Priority 4 Phase 3
+1. Investigate `mkfs.fat` (dosfstools) with root access as Mac workaround
+2. Or investigate `hdiutil` disk image → `dd` to SD card approach (needs root)
+3. After workaround found: close GitHub #16, merge SD card phase into Priority 4 Phase 3
 
 ---
 
@@ -235,7 +245,7 @@ See CLAUDE.md section 6 for test protocol and CI/CD trigger table.
 
 ### High Priority
 
-1. **Cross-Platform SD Card Workflow** — macOS support for `prepare_sd_card.m` (#16) — ⚡ Nearly complete, lab validation Mar 2
+1. **Cross-Platform SD Card Workflow** — macOS support for `prepare_sd_card.m` (#16) — ⚠️ Windows works, Mac blocked by Spotlight root dir issue
 2. **Observer Position & Arena Pitch** — Cross-repo feature (#15, webDisplayTools #40)
 
 ### Medium Priority
@@ -329,6 +339,7 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
+| 2026-03-02 | **Lab Test: Windows ✅ Mac ❌** — Windows SD card works perfectly on G4.1 controller. Mac card fails (no patterns display) despite byte-exact files. Root cause: macOS `.Spotlight-V100` directory in FAT32 root is undeletable (OS + CrowdStrike locks). Tried: Spotlight disable, nobrowse mount, fseventsd cleanup, hdiutil disk image, dosfstools — all blocked by permissions. Current recommendation: format on Windows. |
 | 2026-03-01 | **macOS Dot-File Fix & SD Test Suite** — Fixed `._*` AppleDouble resource fork files corrupting FAT32 dirIndex on Mac (auto-deleted after copy, filtered from verification). Created `test_sd_card_deployment.m` (automated, ~15 tests, supports real SD via `UseRealSD`). Removed 5 obsolete test/example scripts. Lab test plan for Mar 2. |
 | 2026-02-28 | **Web Protocol Roundtrip CI + Mac SD Card Support** — Web import fix (simpleYAMLParse missing braces, v0.2). New CI workflow `validate-protocol-roundtrip.yml` (49 checks). MATLAB validator `validate_web_protocol_roundtrip.m` (28/28). Mac SD card: `detect_sd_card.m`, `diskutil` formatting, `ValidateDriveName` on Mac via `fileparts()`. Quickstart CCW arena fix. |
 | 2026-02-26 | **Arena Config Audit & Consolidation Plan** — Complete audit of config redundancy across codebase. Updated `docs/arena_config_audit.md` with 3-phase plan: (1) drop V1 protocols, standardize on V2 with rig-based IP resolution, (2) unify generation specs YAML↔MATLAB, (3) extract shared derived property computation. Sent to Lisa for review. Also: fixed SD card PATSD detection on Windows, fixed protocol YAML path/pattern field issues, created Mode 3 benchmark script. |

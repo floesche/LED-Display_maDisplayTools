@@ -262,6 +262,28 @@ dot_clean /Volumes/PATSD
 find /Volumes/PATSD -name '._*' -delete
 ```
 
+### Mac: Card Passes All Software Tests But Controller Shows No Patterns
+
+**Symptom**: `test_sd_card_deployment` passes, all 16 files are byte-exact vs source, dirIndex order is correct, MANIFEST is valid — but the G4.1 controller shows no patterns.
+
+**Root Cause**: macOS automatically creates hidden system directories (`.Spotlight-V100`, `.fseventsd`) in the FAT32 root immediately upon mounting. These occupy root dirIndex slots and confuse the G4.1 controller firmware. The `._` AppleDouble cleanup handles pattern-level dot files, but these root-level system directories cannot be deleted while the volume is mounted (macOS locks them).
+
+**What we tried (Mar 2 lab test)**:
+- Removed `.fseventsd` ✓ (deletable after `mdutil -d` + `mdutil -i off`)
+- `.Spotlight-V100` → "Operation not permitted" (locked by macOS, even with Spotlight disabled)
+- CrowdStrike endpoint agent further blocks immediate-unmount strategies
+- `hdiutil` disk image approach creates a clean FAT32 (no Spotlight dirs!), but `asr restore` doesn't support FAT32 images, and raw `dd`/`mkfs.fat` need root access
+
+**Current Workaround**: **Format and deploy SD cards on Windows.** The Windows-prepared card works perfectly on the G4.1 controller. The Mac-prepared card (same byte-exact patterns) does not.
+
+**Future fix options** (untested):
+1. Run MATLAB/script as root to use `mkfs.fat` (from `brew install dosfstools`) for a clean FAT32 format, then mount with `-nobrowse` before copying
+2. Use `hdiutil create` → populate image → `dd if=image of=/dev/rdiskN` (needs root)
+3. Disable SIP temporarily to allow `.Spotlight-V100` deletion (not recommended on shared lab Macs)
+4. Investigate whether the G4.1 controller firmware can be made tolerant of extra root directory entries
+
+**Key finding**: The `prepare_sd_card_crossplatform.m` script, dot-file cleanup, and MANIFEST generation all work correctly on Mac. The ONLY issue is macOS poisoning the FAT32 root directory with undeletable system directories that the G4.1 controller firmware cannot handle.
+
 ### Mac: Permission Denied During Format
 
 **Symptom**: "Operation not permitted" or similar error from `diskutil`.
@@ -414,6 +436,7 @@ results = test_sd_card_deployment('UseRealSD', true); % Real SD card
 
 | Date | Change |
 |------|--------|
+| 2026-03-02 | Lab test: Windows SD card works, Mac SD card fails on G4.1 controller. Root cause: macOS `.Spotlight-V100` in FAT32 root (undeletable). Current recommendation: format on Windows. See troubleshooting section. |
 | 2026-03-01 | Fixed macOS dot-file issue: `._*` resource fork files on FAT32 corrupted dirIndex ordering. Now auto-cleaned after copy. Verification count excludes dot-files. |
 | 2026-02-28 | Added Mac `diskutil` formatting support. Created `detect_sd_card.m` utility for cross-platform SD detection. Added Mac quick start guide, platform support table, and Mac-specific troubleshooting. Refactored `prepare_g41_experiment_sd.m` to use utilities. |
 | 2026-01-21 | Added Format/UsePatternFolder/ValidateDriveName options. Lowercase pattern names. Full 100-pattern testing complete. Added troubleshooting section. |

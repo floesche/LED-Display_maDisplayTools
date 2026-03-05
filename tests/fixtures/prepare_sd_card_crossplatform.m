@@ -473,6 +473,37 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
         end
     end
 
+    %% Clean macOS system directories from FAT32 root
+    %  macOS creates .Spotlight-V100 and .fseventsd in the root of any
+    %  mounted FAT32 volume. These occupy root directory entries that
+    %  confuse the G4.1 controller firmware. We can delete .fseventsd
+    %  after disabling Spotlight indexing; .Spotlight-V100 is locked by
+    %  macOS and cannot be removed while mounted (see sd_card_deployment_notes.md).
+    if ismac
+        % Disable Spotlight indexing on this volume (prevents .fseventsd regrowth)
+        [~, ~] = system(sprintf('mdutil -d "%s" 2>/dev/null', sd_root));
+        [~, ~] = system(sprintf('mdutil -i off "%s" 2>/dev/null', sd_root));
+
+        % Remove .fseventsd (deletable after Spotlight is disabled)
+        fseventsd_path = fullfile(sd_root, '.fseventsd');
+        if isfolder(fseventsd_path)
+            [status, ~] = system(sprintf('rm -rf "%s" 2>/dev/null', fseventsd_path));
+            if status == 0
+                fprintf('  ✓ Removed .fseventsd (macOS filesystem events directory)\n');
+            else
+                warning('Could not remove .fseventsd — controller may not read this card.');
+            end
+        end
+
+        % Report .Spotlight-V100 status (cannot delete, but inform user)
+        spotlight_path = fullfile(sd_root, '.Spotlight-V100');
+        if isfolder(spotlight_path)
+            fprintf('  ⚠ .Spotlight-V100 present (macOS locks this — cannot delete while mounted)\n');
+            fprintf('    The G4.1 controller may not read Mac-formatted cards.\n');
+            fprintf('    Workaround: format SD card on Windows, then deploy patterns from any OS.\n');
+        end
+    end
+
     %% Verify (exclude macOS ._* resource fork files from count)
     all_pat = dir(fullfile(target_dir, '*.pat'));
     real_pat = all_pat(~startsWith({all_pat.name}, '._'));
