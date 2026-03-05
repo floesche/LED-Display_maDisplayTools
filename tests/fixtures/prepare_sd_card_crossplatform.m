@@ -3,7 +3,6 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
 %
 %   mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location)
 %   mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, 'Format', true)
-%   mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, 'UsePatternFolder', false)
 %   mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, 'StagingDir', '/path/to/staging')
 %
 %   Cross-platform wrapper that works on Windows, Mac, and Linux.
@@ -19,7 +18,6 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
 %                                       Windows: format X: /FS:FAT32 /V:PATSD /Q /Y
 %                                       Mac: diskutil eraseDisk FAT32 PATSD MBRFormat diskN
 %                                       (prompts for confirmation on Mac before erasing)
-%           'UsePatternFolder' (true) - Copy patterns to /patterns subfolder
 %           'StagingDir' ('')         - Custom staging directory (default: tempdir/sd_staging)
 %           'ValidateDriveName' (true)- Require SD card named PATSD (Windows only)
 %
@@ -71,7 +69,6 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
         pattern_paths cell
         sd_location char
         options.Format (1,1) logical = false
-        options.UsePatternFolder (1,1) logical = true
         options.StagingDir char = ''
         options.ValidateDriveName (1,1) logical = true
     end
@@ -282,11 +279,7 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
     end
     
     %% Determine target directory on SD card
-    if options.UsePatternFolder
-        target_dir = fullfile(sd_root, 'patterns');
-    else
-        target_dir = sd_root;
-    end
+    target_dir = fullfile(sd_root, 'patterns');
     mapping.target_dir = target_dir;
     
     %% Format or clear SD card
@@ -306,11 +299,9 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
             fprintf('  ✓ SD card formatted\n');
             did_format = true;
 
-            % Create patterns folder if needed
-            if options.UsePatternFolder
-                mkdir(target_dir);
-                fprintf('  ✓ Created patterns folder\n');
-            end
+            % Create patterns folder
+            mkdir(target_dir);
+            fprintf('  ✓ Created patterns folder\n');
 
         elseif ismac && ~is_drive_letter
             % Mac: format with diskutil eraseDisk
@@ -351,12 +342,10 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
                     did_format = true;
 
                     % Update target dir since sd_root changed
-                    if options.UsePatternFolder
-                        target_dir = fullfile(sd_root, 'patterns');
-                        mapping.target_dir = target_dir;
-                        mkdir(target_dir);
-                        fprintf('  ✓ Created patterns folder\n');
-                    end
+                    target_dir = fullfile(sd_root, 'patterns');
+                    mapping.target_dir = target_dir;
+                    mkdir(target_dir);
+                    fprintf('  ✓ Created patterns folder\n');
                 else
                     fprintf('\n  Format declined. To format manually, run in Terminal:\n');
                     fprintf('    diskutil eraseDisk FAT32 PATSD MBRFormat %s\n', device);
@@ -378,25 +367,14 @@ function mapping = prepare_sd_card_crossplatform(pattern_paths, sd_location, opt
 
     if ~did_format
         % Manual cleanup (works on all platforms)
-        if options.UsePatternFolder
-            % Remove and recreate patterns folder
-            if isfolder(target_dir)
-                fprintf('  Removing old patterns folder...\n');
-                rmdir(target_dir, 's');
-            end
-            mkdir(target_dir);
-        else
-            % Delete all files in root (but not directories)
-            old_files = dir(fullfile(sd_root, '*.*'));
-            for i = 1:length(old_files)
-                if ~old_files(i).isdir
-                    delete(fullfile(sd_root, old_files(i).name));
-                end
-            end
-            fprintf('  ✓ Cleared existing files\n');
+        % Remove and recreate patterns folder
+        if isfolder(target_dir)
+            fprintf('  Removing old patterns folder...\n');
+            rmdir(target_dir, 's');
         end
-        
-        % Delete old manifest files from root (in case switching modes)
+        mkdir(target_dir);
+
+        % Delete old manifest files from root
         old_manifest_bin = fullfile(sd_root, 'MANIFEST.bin');
         old_manifest_txt = fullfile(sd_root, 'MANIFEST.txt');
         if isfile(old_manifest_bin)

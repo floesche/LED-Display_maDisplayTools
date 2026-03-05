@@ -3,7 +3,6 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
 %
 %   mapping = prepare_sd_card(pattern_paths, sd_drive)
 %   mapping = prepare_sd_card(pattern_paths, sd_drive, 'Format', true)
-%   mapping = prepare_sd_card(pattern_paths, sd_drive, 'UsePatternFolder', false)
 %   mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', '/path/to/staging')
 %
 %   Takes an ordered list of pattern files, renames them to PAT0001.pat,
@@ -14,7 +13,6 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
 %       sd_drive      - Drive letter for SD card (e.g., 'D' or 'D:')
 %       options       - Name-value pairs:
 %           'Format' (false)          - Format SD card before copying (recommended)
-%           'UsePatternFolder' (true) - Copy patterns to /patterns subfolder
 %           'StagingDir' ('')         - Custom staging directory (default: tempdir/sd_staging)
 %           'ValidateDriveName' (true)- Require SD card to be named PATSD
 %
@@ -31,17 +29,10 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
 %           .staging_dir    - path to staging directory
 %           .target_dir     - final location on SD card
 %
-%   SD CARD STRUCTURE (UsePatternFolder=true, default):
+%   SD CARD STRUCTURE:
 %       E:\patterns\PAT0001.pat
 %       E:\patterns\PAT0002.pat
 %       E:\patterns\...
-%       E:\MANIFEST.bin
-%       E:\MANIFEST.txt
-%
-%   SD CARD STRUCTURE (UsePatternFolder=false):
-%       E:\PAT0001.pat
-%       E:\PAT0002.pat
-%       E:\...
 %       E:\MANIFEST.bin
 %       E:\MANIFEST.txt
 %
@@ -68,7 +59,6 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         pattern_paths cell
         sd_drive char
         options.Format (1,1) logical = false
-        options.UsePatternFolder (1,1) logical = true
         options.StagingDir char = ''
         options.ValidateDriveName (1,1) logical = true
     end
@@ -255,11 +245,7 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
     end
     
     %% Determine target directory on SD card
-    if options.UsePatternFolder
-        target_dir = fullfile(sd_root, 'patterns');
-    else
-        target_dir = sd_root;
-    end
+    target_dir = fullfile(sd_root, 'patterns');
     mapping.target_dir = target_dir;
     
     %% Format or clear SD card
@@ -274,33 +260,19 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
             return;
         end
         fprintf('  ✓ SD card formatted\n');
-        
-        % Create patterns folder if needed
-        if options.UsePatternFolder
-            mkdir(target_dir);
-            fprintf('  ✓ Created patterns folder\n');
-        end
+
+        % Create patterns folder
+        mkdir(target_dir);
+        fprintf('  ✓ Created patterns folder\n');
     else
-        % Manual cleanup
-        if options.UsePatternFolder
-            % Remove and recreate patterns folder
-            if isfolder(target_dir)
-                fprintf('  Removing old patterns folder...\n');
-                rmdir(target_dir, 's');
-            end
-            mkdir(target_dir);
-        else
-            % Delete all files in root
-            old_files = dir(fullfile(sd_root, '*.*'));
-            for i = 1:length(old_files)
-                if ~old_files(i).isdir
-                    delete(fullfile(sd_root, old_files(i).name));
-                end
-            end
-            fprintf('  ✓ Cleared existing files\n');
+        % Manual cleanup: remove and recreate patterns folder
+        if isfolder(target_dir)
+            fprintf('  Removing old patterns folder...\n');
+            rmdir(target_dir, 's');
         end
-        
-        % Delete old manifest files from root (in case switching modes)
+        mkdir(target_dir);
+
+        % Delete old manifest files from root
         old_manifest_bin = fullfile(sd_root, 'MANIFEST.bin');
         old_manifest_txt = fullfile(sd_root, 'MANIFEST.txt');
         if isfile(old_manifest_bin)

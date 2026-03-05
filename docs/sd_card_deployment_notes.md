@@ -69,7 +69,6 @@ mapping = prepare_sd_card(patterns, drive_letter, Name, Value, ...)
 | Option | Default | Description |
 |--------|---------|-------------|
 | `'Format'` | `false` | Format SD card as FAT32 before copying (recommended) |
-| `'UsePatternFolder'` | `true` | Put patterns in `/patterns` subfolder (vs root) |
 | `'ValidateDriveName'` | `true` | Require SD card to be named "PATSD" |
 | `'StagingDir'` | `tempdir` | Custom staging directory path |
 
@@ -78,9 +77,6 @@ mapping = prepare_sd_card(patterns, drive_letter, Name, Value, ...)
 ```matlab
 % Recommended: format drive, patterns in /patterns folder
 mapping = prepare_sd_card(patterns, 'E', 'Format', true);
-
-% Testing: format drive, patterns in root directory
-mapping = prepare_sd_card(patterns, 'E', 'Format', true, 'UsePatternFolder', false);
 
 % With custom staging directory (for experiment traceability)
 mapping = prepare_sd_card(patterns, 'E', 'Format', true, ...
@@ -104,7 +100,7 @@ mapping = prepare_sd_card(patterns, 'E', 'ValidateDriveName', false);
 8. **Saves local log** → `maDisplayTools/logs/MANIFEST_YYYYMMDD_HHMMSS.txt`
 9. **Verifies** → Confirms pattern count matches (excludes `._*` files)
 
-### SD Card Structure (UsePatternFolder=true, default)
+### SD Card Structure
 
 ```
 E:\ (PATSD)
@@ -115,18 +111,6 @@ E:\ (PATSD)
     ├── pat0002.pat
     ├── pat0003.pat
     └── ...
-```
-
-### SD Card Structure (UsePatternFolder=false)
-
-```
-E:\ (PATSD)
-├── MANIFEST.bin
-├── MANIFEST.txt
-├── pat0001.pat
-├── pat0002.pat
-├── pat0003.pat
-└── ...
 ```
 
 ---
@@ -436,6 +420,7 @@ results = test_sd_card_deployment('UseRealSD', true); % Real SD card
 
 | Date | Change |
 |------|--------|
+| 2026-03-03 | Removed `UsePatternFolder` option. Patterns are now always placed in `/patterns` subfolder. |
 | 2026-03-02 | Lab test: Windows SD card works, Mac SD card fails on G4.1 controller. Root cause: macOS `.Spotlight-V100` in FAT32 root (undeletable). Current recommendation: format on Windows. See troubleshooting section. |
 | 2026-03-01 | Fixed macOS dot-file issue: `._*` resource fork files on FAT32 corrupted dirIndex ordering. Now auto-cleaned after copy. Verification count excludes dot-files. |
 | 2026-02-28 | Added Mac `diskutil` formatting support. Created `detect_sd_card.m` utility for cross-platform SD detection. Added Mac quick start guide, platform support table, and Mac-specific troubleshooting. Refactored `prepare_g41_experiment_sd.m` to use utilities. |
