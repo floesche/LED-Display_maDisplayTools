@@ -49,7 +49,7 @@ classdef ProtocolRunner < handle
             addParameter(p, 'OutputDir', './experiments', @ischar);
             addParameter(p, 'Verbose', true, @islogical);
             addParameter(p, 'DryRun', false, @islogical);
-            addParameter(p, 'MaxAttempts', 2, @(x) isnumeric(x) && x >= 1);
+            addParameter(p, 'maxAttempts', 2, @(x) isnumeric(x) && x >= 1);
             parse(p, protocolFilePath, varargin{:});
             
             % Store configuration
@@ -446,32 +446,8 @@ classdef ProtocolRunner < handle
         
         function executePretrialPhase(self)
             % Execute pretrial commands
-            
-            if ~isfield(self.protocolData, 'pretrialCommands') || ...
-               isempty(self.protocolData.pretrialCommands)
-                self.logger.log('INFO', 'No pretrial phase defined');
-                return;
-            end
-            
-            self.logger.log('INFO', '=== PRETRIAL PHASE START ===');
             fprintf('\n=== Executing Pretrial ===\n');
-            
-            commands = self.protocolData.pretrialCommands;
-            
-            for i = 1:length(commands)
-                self.logger.log('INFO', sprintf('Executing pretrial command %d/%d', ...
-                                              i, length(commands)));
-                
-                try
-                    self.commandExecutor.execute(commands{i});
-                catch ME
-                    self.logger.log('ERROR', sprintf('Pretrial command %d failed: %s', ...
-                                                   i, ME.message));
-                    error('Pretrial phase failed');
-                end
-            end
-            
-            self.logger.log('INFO', '=== PRETRIAL PHASE COMPLETE ===');
+            self.executePhase(self.protocolData.pretrialCommands, 'pretrial');
             fprintf('=== Pretrial Complete ===\n\n');
         end
         
@@ -488,7 +464,6 @@ classdef ProtocolRunner < handle
                            ~isempty(self.protocolData.intertrialCommands);
             
             for trialIdx = 1:numTrials
-                % Get trial metadata
                 trial = self.trialExecutionOrder(trialIdx);
                 
                 % Log trial start
@@ -500,40 +475,13 @@ classdef ProtocolRunner < handle
                 % Find condition definition
                 conditionDef = self.findConditionByID(trial.conditionID);
                 
-                               % Execute trial commands
-                while ~success && attempt <= self.maxAttempts
-                    try
-
-                        self.executeTrial(trial, conditionDef);
-                        success = 1;
-                    catch ME
-                        if attempt < self.maxAttempts
-                            attempt = attempt + 1;
-                            if ismember(ME.identifier, self.recoverableErrors)
-                                switch ME.identifier
-
-                                    case 'CommandExecutor:HardwareFailure'
-                                        msg = sprintf(['\n*** Arena hardware failure ***\n' ...
-                       'Command "%s" received no confirmation from the arena.\n' ...
-                       'Please restart the arena controller and wait for it to come back online.\n' ...
-                       'Press Enter when ready to retry...'], ME.message);
-                                    case {'SerialPlugin:NotConnected', 'SerialPlugin:CriticalFailure'}
-                                        msg = sprintf(['\n*** Serial device failure ***\n' ...
-                       'A serial device lost its connection mid-experiment.\n' ...
-                       'Please check the device connection and press Enter to retry...']);
-                                end
-                                input(msg);
-                            end
-                            
-                        else
-                            rethrow(ME);
-                        end
-                    end
-                end
+                % Execute trial commands
+                self.executePhase(conditionDef.commands, ...
+                    sprintf('trial %d (condition %s)', trial.trialNumber, trial.conditionID));
                 
                 % Execute intertrial (if not last trial and intertrial exists)
                 if trialIdx < numTrials && hasIntertrial
-                    self.executeIntertrialPhase();
+                    self.executePhase(self.protocolData.intertrialCommands, 'intertrial');
                 end
             end
             
@@ -554,74 +502,62 @@ classdef ProtocolRunner < handle
             error('Condition not found: %s', conditionID);
         end
         
-        function executeTrial(self, trialMetadata, conditionDef)
-            % Execute commands for a single trial
-            
-            startTime = tic;
-            
-            commands = conditionDef.commands;
-            
-            for i = 1:length(commands)
-                try
-                    self.commandExecutor.execute(commands{i});
-                catch ME
-                    self.logger.log('ERROR', sprintf('Trial %d command %d failed: %s', ...
-                                                   trialMetadata.trialNumber, i, ME.message));
-                    error('Trial execution failed');
-                end
-            end
-            
-            duration = toc(startTime);
-            self.logger.log('INFO', sprintf('Trial %d completed in %.2f seconds', ...
-                                          trialMetadata.trialNumber, duration));
-        end
-        
-        function executeIntertrialPhase(self)
-            % Execute intertrial commands
-            
-            commands = self.protocolData.intertrialCommands;
-            
-            for i = 1:length(commands)
-                try
-                    self.commandExecutor.execute(commands{i});
-                catch ME
-                    self.logger.log('ERROR', sprintf('Intertrial command %d failed: %s', ...
-                                                   i, ME.message));
-                    error('Intertrial phase failed');
-                end
-            end
-        end
-        
         function executePosttrialPhase(self)
             % Execute posttrial commands
-            
-            if ~isfield(self.protocolData, 'posttrialCommands') || ...
-               isempty(self.protocolData.posttrialCommands)
-                self.logger.log('INFO', 'No posttrial phase defined');
+            fprintf('\n=== Executing Posttrial ===\n');
+            self.executePhase(self.protocolData.posttrialCommands, 'posttrial');
+            fprintf('=== Posttrial Complete ===\n\n');
+        end
+
+        function executePhase(self, commands, phaseName)
+            % Execute a list of commands with retry logic on recoverable errors
+            %
+            % Input Arguments:
+            %   commands  - Cell array of command structs
+            %   phaseName - String used in log messages and user prompts
+            %               e.g. 'pretrial', 'intertrial', 'trial 3 (condition A)'
+
+            if isempty(commands)
+                self.logger.log('INFO', sprintf('No commands defined for %s, skipping', phaseName));
                 return;
             end
-            
-            self.logger.log('INFO', '=== POSTTRIAL PHASE START ===');
-            fprintf('\n=== Executing Posttrial ===\n');
-            
-            commands = self.protocolData.posttrialCommands;
-            
-            for i = 1:length(commands)
-                self.logger.log('INFO', sprintf('Executing posttrial command %d/%d', ...
-                                              i, length(commands)));
-                
+
+            self.logger.log('INFO', sprintf('=== %s START ===', upper(phaseName)));
+            startTime = tic;
+
+            attempt = 1;
+            success = false;
+            while ~success && attempt <= self.maxAttempts
                 try
-                    self.commandExecutor.execute(commands{i});
+                    for i = 1:length(commands)
+                        self.commandExecutor.execute(commands{i});
+                    end
+                    success = true;
                 catch ME
-                    self.logger.log('ERROR', sprintf('Posttrial command %d failed: %s', ...
-                                                   i, ME.message));
-                    % Don't fail experiment on posttrial error
-                    fprintf(2, 'Warning: Posttrial command failed\n');
+                    self.logger.log('ERROR', sprintf('%s failed on attempt %d: %s', ...
+                        phaseName, attempt, ME.message));
+                    if attempt < self.maxAttempts && ismember(ME.identifier, self.recoverableErrors)
+                        attempt = attempt + 1;
+                        switch ME.identifier
+                            case 'CommandExecutor:HardwareFailure'
+                                msg = sprintf(['\n*** Arena hardware failure during %s ***\n' ...
+                                    'Command returned no confirmation from the arena.\n' ...
+                                    'Please restart the arena controller and wait for it to come back online.\n' ...
+                                    'Press Enter when ready to retry...'], phaseName);
+                            case {'SerialPlugin:NotConnected', 'SerialPlugin:CriticalFailure'}
+                                msg = sprintf(['\n*** Serial device failure during %s ***\n' ...
+                                    'A serial device lost its connection.\n' ...
+                                    'Please check the device connection and press Enter to retry...'], phaseName);
+                        end
+                        input(msg);
+                    else
+                        rethrow(ME);
+                    end
                 end
             end
-            
-            self.logger.log('INFO', '=== POSTTRIAL PHASE COMPLETE ===');
-            fprintf('=== Posttrial Complete ===\n\n');
+
+            duration = toc(startTime);
+            self.logger.log('INFO', sprintf('%s completed in %.2f seconds', phaseName, duration));
         end
         
         function finalizeExperiment(self)
