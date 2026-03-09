@@ -2,7 +2,7 @@
 
 > **Living Document** — Update this file as work progresses and priorities shift.
 >
-> **Last Updated**: 2026-03-01
+> **Last Updated**: 2026-03-05
 >
 > **Note**: Completed work and detailed session logs archived in `G4G6_ROADMAP_SESSIONS.md`.
 
@@ -339,6 +339,7 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
+| 2026-03-05 | **Mac SD Card Investigation Closed** — Lab-tested two additional fixes from PR #21: `dot_clean -m` (removes `._*` AppleDouble files) and `fatsort` (compacts FAT32 directory entries). Both failed on G4.1 controller. Windows confirmed still working. Reverted all experimental changes. Posted results on PR #21. |
 | 2026-03-02 | **Lab Test: Windows ✅ Mac ❌** — Windows SD card works perfectly on G4.1 controller. Mac card fails (no patterns display) despite byte-exact files. Root cause: macOS `.Spotlight-V100` directory in FAT32 root is undeletable (OS + CrowdStrike locks). Tried: Spotlight disable, nobrowse mount, fseventsd cleanup, hdiutil disk image, dosfstools — all blocked by permissions. Current recommendation: format on Windows. |
 | 2026-03-01 | **macOS Dot-File Fix & SD Test Suite** — Fixed `._*` AppleDouble resource fork files corrupting FAT32 dirIndex on Mac (auto-deleted after copy, filtered from verification). Created `test_sd_card_deployment.m` (automated, ~15 tests, supports real SD via `UseRealSD`). Removed 5 obsolete test/example scripts. Lab test plan for Mar 2. |
 | 2026-02-28 | **Web Protocol Roundtrip CI + Mac SD Card Support** — Web import fix (simpleYAMLParse missing braces, v0.2). New CI workflow `validate-protocol-roundtrip.yml` (49 checks). MATLAB validator `validate_web_protocol_roundtrip.m` (28/28). Mac SD card: `detect_sd_card.m`, `diskutil` formatting, `ValidateDriveName` on Mac via `fileparts()`. Quickstart CCW arena fix. |

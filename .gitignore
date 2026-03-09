@@ -14,3 +14,6 @@ screenshots/
 # Runtime artifacts
 configs/arenas/arena_parameters.mat
 configs/arenas/startfield_dots.mat
+
+# Test logs (MANIFEST artifacts from SD card testing)
+tests/logs/

@@ -2084,3 +2084,65 @@ The ONLY issue is macOS poisoning the FAT32 root directory with undeletable syst
 2. `hdiutil` image → `dd` to SD card with root access
 3. Controller firmware patch to skip hidden/system directory entries
 4. `dosfstools` + `diskutil unmountDisk force` in rapid sequence (may work without CrowdStrike)
+
+---
+
+## Session: Mar 3–5, 2026 — Mac SD Card: dot_clean + fatsort Lab Tests (Final)
+
+### Overview
+
+Continued investigation from PR #21 (Frank's `xattr -c` suggestion). Tested two additional approaches to fix Mac-prepared SD cards for G4.1 controller. Both failed. Investigation concluded: **Mac cannot prepare SD cards for G4.1**.
+
+### What Was Tested
+
+**Mar 3–4 (software testing):**
+- Confirmed `xattr -c` does NOT prevent `._*` files (`com.apple.provenance` is kernel-level)
+- Tested 7 copy methods (cp, cp -X, COPYFILE_DISABLE=1 cp, cat, dd, ditto --norsrc, Python shutil): ALL create `._*` files on FAT32
+- Discovered `dot_clean -m` reliably removes all `._*` files (merges attributes then unlinks)
+- 13/13 MATLAB tests pass with dot_clean approach
+- Installed `fatsort` (Homebrew, v1.7.679) per Frank's suggestion to compact FAT32 directory entries
+
+**Mar 5 (lab testing on G4.1 controller):**
+
+| Test | SD Card Preparation | Controller Result |
+|------|-------------------|-------------------|
+| Test 1 | Format → copy 16 patterns → `dot_clean -m` → clean `.fseventsd` | **FAIL** — no patterns display |
+| Test 2 | Same as Test 1 + `sudo fatsort -a /dev/disk4s1` | **FAIL** — no patterns display |
+| Control | Windows-prepared SD card (same patterns) | **PASS** — all patterns work |
+
+### Verification Steps (Test 1)
+
+Before lab test, verified SD card was clean:
+- 16 `.pat` files in `/patterns/` (correct dirIndex order via `ls -U`)
+- 0 `._*` files (dot_clean removed all 19)
+- No `.fseventsd` (manually removed)
+- MANIFEST.bin and MANIFEST.txt present in root
+- MD5 checksums match source patterns
+
+### Verification Steps (Test 2)
+
+After fatsort:
+- Same 16 `.pat` files, correct order
+- fatsort reported sorting `/patterns/` directory entries
+- `ls -U` confirmed clean dirIndex
+
+### Conclusion
+
+The Mac SD card failure goes beyond `._*` files and FAT32 directory entry ordering. Likely causes:
+- `.Spotlight-V100` in root (undeletable on macOS)
+- macOS FAT32 formatting differences (BPB fields, cluster allocation)
+- Some other macOS filesystem artifact not yet identified
+
+**Recommendation**: Format and deploy SD cards on Windows or Linux only.
+
+### Actions Taken
+
+- Reverted all `dot_clean` changes from `prepare_sd_card_crossplatform.m`
+- Posted detailed lab results on PR #21 (comment with full method/result table)
+- Sent focused Slack summary to Frank about today's test
+- Confirmed Windows SD card preparation still works (tested on lab PC)
+
+### Files Modified
+- `docs/G4G6_ROADMAP.md` — changelog entry, updated date
+- `docs/G4G6_ROADMAP_SESSIONS.md` — this session log
+- `MEMORY.md` — updated with definitive Mac SD card findings
