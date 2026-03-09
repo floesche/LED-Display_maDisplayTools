@@ -87,7 +87,8 @@ classdef PanelsControllerNative < handle
 
             while ~self.isOpen
                 try
-                    self.tcpConn = tcpclient(self.hostName, self.port, 'Timeout', 5);
+                    self.tcpConn = tcpclient(self.hostName, self.port, ...
+                        'Timeout', 5, 'EnableTransferDelay', false);
                 catch ME
                     fprintf("couldn't open tcp connection to G4 Host: %s, trying again\n", ME.message);
                 end
