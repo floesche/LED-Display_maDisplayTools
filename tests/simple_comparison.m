@@ -76,49 +76,47 @@ function r = run_simple_tests(pc, name)
     r = struct();
     r.backend = name;
 
-    % Test 1: allOn (10 iterations)
+    N = 50;  % iterations per command
+
+    % Test 1: allOn
     fprintf('  allOn:       ');
-    [r.allOn.passed, r.allOn.failed, r.allOn.time_ms] = test_command(@() pc.allOn(), 10);
-    fprintf('%d/10, %.1f ms avg\n', r.allOn.passed, r.allOn.time_ms);
+    r.allOn = test_command(@() pc.allOn(), N);
+    fprintf('%d/%d, %.1f +/- %.1f ms (med %.1f)\n', r.allOn.passed, N, r.allOn.mean_ms, r.allOn.std_ms, r.allOn.median_ms);
 
     pause(0.2);
 
-    % Test 2: allOff (10 iterations)
+    % Test 2: allOff
     fprintf('  allOff:      ');
-    [r.allOff.passed, r.allOff.failed, r.allOff.time_ms] = test_command(@() pc.allOff(), 10);
-    fprintf('%d/10, %.1f ms avg\n', r.allOff.passed, r.allOff.time_ms);
+    r.allOff = test_command(@() pc.allOff(), N);
+    fprintf('%d/%d, %.1f +/- %.1f ms (med %.1f)\n', r.allOff.passed, N, r.allOff.mean_ms, r.allOff.std_ms, r.allOff.median_ms);
 
     pause(0.2);
 
-    % Test 3: stopDisplay (10 iterations)
+    % Test 3: stopDisplay
     fprintf('  stopDisplay: ');
-    [r.stop.passed, r.stop.failed, r.stop.time_ms] = test_command(@() pc.stopDisplay(), 10);
-    fprintf('%d/10, %.1f ms avg\n', r.stop.passed, r.stop.time_ms);
+    r.stop = test_command(@() pc.stopDisplay(), N);
+    fprintf('%d/%d, %.1f +/- %.1f ms (med %.1f)\n', r.stop.passed, N, r.stop.mean_ms, r.stop.std_ms, r.stop.median_ms);
 
     pause(0.2);
 
-    % Test 4: streamFrame (large packet test, 5 iterations)
+    % Test 4: streamFrame (large packet test)
     fprintf('  streamFrame: ');
     try
-        % Create a frame for 2x12 panel config (32 rows x 192 cols)
-        frame = maDisplayTools.make_framevector_gs16(zeros(32, 192), 0);  % ~3176 bytes
-        [r.stream.passed, r.stream.failed, r.stream.time_ms] = test_command(@() pc.streamFrame(0, 0, frame), 5);
-        fprintf('%d/5, %.1f ms avg (%d bytes)\n', r.stream.passed, r.stream.time_ms, length(frame));
+        frame = maDisplayTools.make_framevector_gs16(zeros(32, 192), 0);
+        r.stream = test_command(@() pc.streamFrame(0, 0, frame), N);
+        fprintf('%d/%d, %.1f +/- %.1f ms (med %.1f) [%d bytes]\n', r.stream.passed, N, r.stream.mean_ms, r.stream.std_ms, r.stream.median_ms, length(frame));
     catch ME
         fprintf('SKIPPED - %s\n', ME.message);
-        r.stream.passed = 0;
-        r.stream.failed = 5;
-        r.stream.time_ms = 0;
-        r.stream.error = ME.message;
+        r.stream = struct('passed', 0, 'failed', N, 'mean_ms', 0, 'median_ms', 0, 'std_ms', 0, 'error', ME.message);
     end
 end
 
 
-function [passed, failed, avg_ms] = test_command(fn, n, delay)
-%TEST_COMMAND Test a command n times and measure timing
+function r = test_command(fn, n, delay)
+%TEST_COMMAND Test a command n times and return stats
 %   delay - optional pause between commands (default: 0.05s for reliability)
     if nargin < 3
-        delay = 0.05;  % 50ms between commands for reliable testing
+        delay = 0.05;
     end
 
     passed = 0;
@@ -141,13 +139,18 @@ function [passed, failed, avg_ms] = test_command(fn, n, delay)
             failed = failed + 1;
         end
 
-        % Small delay between commands for reliability
         if i < n && delay > 0
             pause(delay);
         end
     end
 
-    avg_ms = mean(times);
+    r = struct();
+    r.passed = passed;
+    r.failed = failed;
+    r.mean_ms = mean(times);
+    r.median_ms = median(times);
+    r.std_ms = std(times);
+    r.times = times;
 end
 
 
@@ -175,37 +178,31 @@ function print_summary(results)
         return;
     end
 
-    % Results table
-    fprintf('%-15s %12s %12s\n', 'Command', 'pnet', 'native');
-    fprintf('%-15s %12s %12s\n', '-------', '----', '------');
+    N = results.pnet.allOn.passed + results.pnet.allOn.failed;
 
-    % allOn
-    fprintf('%-15s %8d/10 %8d/10\n', 'allOn', ...
-        results.pnet.allOn.passed, results.native.allOn.passed);
+    % Reliability table
+    fprintf('%-15s %10s %10s\n', 'Passed', 'pnet', 'native');
+    fprintf('%-15s %10s %10s\n', '-------', '----', '------');
+    fprintf('%-15s %7d/%d %7d/%d\n', 'allOn', ...
+        results.pnet.allOn.passed, N, results.native.allOn.passed, N);
+    fprintf('%-15s %7d/%d %7d/%d\n', 'allOff', ...
+        results.pnet.allOff.passed, N, results.native.allOff.passed, N);
+    fprintf('%-15s %7d/%d %7d/%d\n', 'stopDisplay', ...
+        results.pnet.stop.passed, N, results.native.stop.passed, N);
+    fprintf('%-15s %7d/%d %7d/%d\n', 'streamFrame', ...
+        results.pnet.stream.passed, N, results.native.stream.passed, N);
 
-    % allOff
-    fprintf('%-15s %8d/10 %8d/10\n', 'allOff', ...
-        results.pnet.allOff.passed, results.native.allOff.passed);
-
-    % stopDisplay
-    fprintf('%-15s %8d/10 %8d/10\n', 'stopDisplay', ...
-        results.pnet.stop.passed, results.native.stop.passed);
-
-    % streamFrame
-    fprintf('%-15s %9d/5 %9d/5\n', 'streamFrame', ...
-        results.pnet.stream.passed, results.native.stream.passed);
-
-    % Timing comparison
-    fprintf('\n%-15s %10s %10s\n', 'Timing (ms)', 'pnet', 'native');
-    fprintf('%-15s %10s %10s\n', '-----------', '----', '------');
-    fprintf('%-15s %10.1f %10.1f\n', 'allOn', ...
-        results.pnet.allOn.time_ms, results.native.allOn.time_ms);
-    fprintf('%-15s %10.1f %10.1f\n', 'allOff', ...
-        results.pnet.allOff.time_ms, results.native.allOff.time_ms);
-    fprintf('%-15s %10.1f %10.1f\n', 'stopDisplay', ...
-        results.pnet.stop.time_ms, results.native.stop.time_ms);
-    fprintf('%-15s %10.1f %10.1f\n', 'streamFrame', ...
-        results.pnet.stream.time_ms, results.native.stream.time_ms);
+    % Timing comparison (median +/- std)
+    fprintf('\n%-15s %16s %16s\n', 'Timing (ms)', 'pnet', 'native');
+    fprintf('%-15s %16s %16s\n', '-----------', '----', '------');
+    cmds = {'allOn', 'allOff', 'stopDisplay', 'streamFrame'};
+    fields = {'allOn', 'allOff', 'stop', 'stream'};
+    for i = 1:length(cmds)
+        p = results.pnet.(fields{i});
+        n = results.native.(fields{i});
+        fprintf('%-15s %8.1f +/- %3.1f %8.1f +/- %3.1f\n', cmds{i}, ...
+            p.median_ms, p.std_ms, n.median_ms, n.std_ms);
+    end
 
     % Overall assessment
     fprintf('\n----------------------------------------\n');
@@ -214,11 +211,12 @@ function print_summary(results)
                  results.pnet.stop.passed + results.pnet.stream.passed;
     native_total = results.native.allOn.passed + results.native.allOff.passed + ...
                    results.native.stop.passed + results.native.stream.passed;
+    total = N * 4;
 
-    fprintf('Total passed:   pnet=%d/35  native=%d/35\n', pnet_total, native_total);
+    fprintf('Total passed:   pnet=%d/%d  native=%d/%d\n', pnet_total, total, native_total, total);
 
     if native_total >= pnet_total
-        fprintf('Status: Native backend is ready for testing\n');
+        fprintf('Status: Native backend matches or exceeds pnet\n');
     else
         fprintf('Status: Native backend needs investigation\n');
     end
