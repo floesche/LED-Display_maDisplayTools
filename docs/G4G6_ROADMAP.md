@@ -2,7 +2,7 @@
 
 > **Living Document** — Update this file as work progresses and priorities shift.
 >
-> **Last Updated**: 2026-03-05
+> **Last Updated**: 2026-03-09
 >
 > **Note**: Completed work and detailed session logs archived in `G4G6_ROADMAP_SESSIONS.md`.
 
@@ -26,13 +26,15 @@
 
 | Branch | Purpose | Status | Notes |
 |--------|---------|--------|-------|
-| `feature/g6-tools` | Main dev branch, G6 tools | Active | Primary development, 202 files changed vs main |
+| `main` | Primary development | Active | G6 tools, V2 protocol, pattern tools all merged |
 | `claude/switchable-tcp-controller-qQRKM` | TCP migration (pnet vs tcpclient) | Testing | Needs lab time |
-| `claude/bugfix-trialparams-executor-80r3o` | YAML experiment workflow fixes | Merged | PR #19 merged Feb 20 |
-| `g41-controller-update` | Earlier G4.1 work, arena design | Stable | Port remaining items, then close |
+| `addReattempts` | Experiment retry logic | Active | Lisa's branch, 1 unmerged commit |
+| `version2Updates` | V2 protocol reference | Merged | Lisa's V2 work, kept for reference |
 | `pcontrol` | PControl GUI work | TBD | Not yet started |
 
 **Branch workflow**: Feature branches → PR → merge to `main`
+
+**Recently deleted** (Mar 9): `feature/g6-tools` (merged via PRs #17, #18), `g41-controller-update` (stale), `fix/mode3-trialparams` (merged), `remove-pattern-in-root-fs` (merged via PR #20), `apple-double-avoidance` (PR #21 closed — Mac SD card investigation concluded)
 
 ---
 
@@ -53,10 +55,12 @@
 - [x] Mode 3 (stream position) frame stepping verified working
 - [ ] Max Mode 3 streaming rate documentation (deferred — needs dedicated benchmarking)
 
-### Priority 3: Merge-Gate Test Suite
-Build a clean, focused test suite that gates `feature/g6-tools` → `main` merge.
+### Priority 3: Regression Test Suite
+Build a regression test suite to prevent regressions now that core tools are on `main`.
 
-**Core tests (must all pass before merge):**
+> **Note**: The original "merge-gate" framing is obsolete — G6 tools merged via PRs #17 and #18. This is now about ongoing regression prevention.
+
+**Core regression tests:**
 - [ ] MATLAB pattern generation: all generations × GS modes → save → load → pixel-exact
 - [ ] Web pattern generation: same patterns → encode → MATLAB load → pixel-exact
 - [ ] Raw header byte comparison: web and MATLAB produce byte-identical file headers
@@ -64,22 +68,22 @@ Build a clean, focused test suite that gates `feature/g6-tools` → `main` merge
 - [ ] App launch: all 3 apps start and close without error
 
 **Cleanup:**
-- [ ] Consolidate scattered test files into single `run_merge_gate_tests.m`
+- [ ] Consolidate scattered test files into single `run_regression_tests.m`
 - [ ] Remove or archive obsolete test scripts (24+ files, many manual/one-off)
 - [ ] Add header V2 tests to web CI (`validate-header-v2.js` — currently manual only)
 
 **Current test inventory** (needs triage):
 - MATLAB: 8 automated validators + 16 manual/one-off scripts in tests/, examples/, scripts/
 - Web: 5 in CI + 4 manual
-- No unified runner, no merge gate
+- No unified runner
 
-### Priority 4: Repo Cleanup & Merge to Main
-- [ ] Phase 1: Pattern tools (PatternGeneratorApp, PatternPreviewerApp, PatternCombinerApp)
-- [ ] Phase 2: Arena config system
-- [ ] Phase 3: SD card tools
-- [ ] Phase 4: Experiment workflow (coordinate with Lisa)
-- [ ] Phase 5: TCP migration (coordinate with Frank)
-- [ ] Close stale branches
+### Priority 4: Repo Cleanup ✅ (Partial)
+- [x] Phase 1: Pattern tools — merged via PR #17 (g6-pattern-tools)
+- [x] Phase 2: Arena config system — merged via PR #18 (core-integration)
+- [ ] Phase 3: SD card tools — Windows workflow complete, Mac blocked (see In-Flight #3)
+- [ ] Phase 4: Experiment workflow — Lisa's V2 updates merged; `addReattempts` branch in progress
+- [ ] Phase 5: TCP migration — `PanelsControllerNative.m` porting to main (see In-Flight #1)
+- [x] Close stale branches — done Mar 9 (5 branches deleted)
 - [x] Post-merge: Remove deprecated controller functions (`startG41Trial` deprecated in favor of `trialParams`)
 
 ---
@@ -144,33 +148,27 @@ These are started projects that need to be picked up and completed.
 
 ### 3. Cross-Platform SD Card Workflow
 
-**Status**: Windows workflow validated ✅. Mac workflow blocked by macOS Spotlight issue. See GitHub issue #16.
+**Status**: Investigation closed (Mar 9). Windows ✅, Mac ❌. See GitHub issue #16, PR #21 (closed).
 
 **Problem**: We develop/test on Mac but run experiments on Windows. `prepare_sd_card.m` uses Windows-specific path handling.
 
-**Completed** (Feb 25 → Mar 1):
+**Completed** (Feb 25 → Mar 5):
 - `detect_sd_card.m` — cross-platform auto-detection (Windows D:-Z:, Mac /Volumes, Linux /media+/mnt)
 - `prepare_sd_card_crossplatform.m` — Mac `diskutil eraseDisk` formatting, staging → ordered copy → manifest
 - `ValidateDriveName` works on Mac (extracts volume name from mount path via `fileparts`)
 - macOS dot-file fix: `._*` AppleDouble resource fork files auto-deleted after copy (prevents G4.1 dirIndex corruption)
-- Verification count filters out `._*` files as safety net
 - `test_sd_card_deployment.m` — automated test suite (~15 tests, supports real SD card via `UseRealSD` flag)
 - Reference pattern set: 16 patterns at `patterns/reference/G41_2x12_cw/` (standard test set)
-- 5 obsolete test/example scripts removed (replaced by proper test suite)
 
-**Lab Test Results (Mar 2)**:
-- ✅ Windows-prepared SD card: all 16 patterns display correctly on G4.1 controller
-- ❌ Mac-prepared SD card: controller shows no patterns despite byte-exact files
-- Root cause: macOS creates `.Spotlight-V100` in FAT32 root on mount (undeletable — locked by OS + CrowdStrike). This corrupts the G4.1 controller's FAT32 root directory parsing.
-- Both cards verified byte-identical pattern files, correct dirIndex order, valid MANIFESTs
-- Removing `.fseventsd` alone did not fix it; `.Spotlight-V100` is the blocker
+**Lab Test Results**:
+- ✅ Windows-prepared SD card: all 16 patterns display correctly on G4.1 controller (Mar 2)
+- ❌ Mac-prepared SD card: controller shows no patterns despite byte-exact files (Mar 2)
+- ❌ `dot_clean -m` (removes `._*` files): controller still fails (Mar 5)
+- ❌ `dot_clean -m` + `fatsort` (compacts FAT32 dir entries): controller still fails (Mar 5)
+- ❌ `xattr -c`, 7 copy methods, Spotlight disable, nobrowse mounts: all failed (Mar 3-5)
+- 🔬 Final test: `mkfs.fat` (dosfstools) with sudo — testing Mar 9
 
-**Current Recommendation**: Format and deploy SD cards on Windows. Mac software (staging, manifest, dot-file cleanup) all works correctly — only the FAT32 root directory pollution is the issue.
-
-**To Pick Up**:
-1. Investigate `mkfs.fat` (dosfstools) with root access as Mac workaround
-2. Or investigate `hdiutil` disk image → `dd` to SD card approach (needs root)
-3. After workaround found: close GitHub #16, merge SD card phase into Priority 4 Phase 3
+**Recommendation**: Format and deploy SD cards on **Windows or Linux only**. Mac MATLAB software (staging, manifest, dot-file cleanup) works correctly — the issue is macOS FAT32 filesystem artifacts that the G4.1 firmware cannot handle. Long-term fix: firmware filename-based pattern access (Peter working on this).
 
 ---
 
@@ -197,19 +195,19 @@ These are started projects that need to be picked up and completed.
 
 ### 5. Branch Reconciliation & Merge to Main
 
-**Status**: Multiple branches with completed work need to be merged.
+**Status**: Mostly complete. Stale branches cleaned up Mar 9.
 
-**Active Branches**:
+**Remaining Branches**:
 | Branch | Status | Action |
 |--------|--------|--------|
-| `feature/g6-tools` | Active dev | Staged merge to main (Priority 3) |
-| `claude/switchable-tcp-controller-qQRKM` | Testing | Merge after TCP testing |
-| `claude/bugfix-trialparams-executor-80r3o` | Merged | PR #19, Feb 20 |
-| `g41-controller-update` | Stable | Port useful items, then close |
+| `claude/switchable-tcp-controller-qQRKM` | Testing | Port key files to main, test on hardware |
+| `addReattempts` | Active | Lisa's experiment retry — merge when ready |
 | `pcontrol` | Not started | Keep for future PControl work |
 
+**Completed merges**: `feature/g6-tools` (PRs #17, #18), `bugfix-trialparams-executor` (PR #19), `remove-pattern-in-root-fs` (PR #20), `fix/mode3-trialparams` (PR #14).
+
 **Merge Strategy**:
-- Merge arena config, pattern tools, SD card tools independently (no impact on others)
+- TCP files: cherry-pick to main (branch too old to rebase)
 - Lisa's code → PR through Lisa
 - PanelController → PR through Frank
 
@@ -245,7 +243,7 @@ See CLAUDE.md section 6 for test protocol and CI/CD trigger table.
 
 ### High Priority
 
-1. **Cross-Platform SD Card Workflow** — macOS support for `prepare_sd_card.m` (#16) — ⚠️ Windows works, Mac blocked by Spotlight root dir issue
+1. **Cross-Platform SD Card Workflow** (#16) — Windows ✅, Mac ❌ (investigation closed Mar 9). Long-term fix: firmware filename-based access (Peter)
 2. **Observer Position & Arena Pitch** — Cross-repo feature (#15, webDisplayTools #40)
 
 ### Medium Priority
@@ -339,6 +337,7 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
+| 2026-03-09 | **Housekeeping & Documentation Refresh** — Deleted 5 stale branches (feature/g6-tools, g41-controller-update, fix/mode3-trialparams, remove-pattern-in-root-fs, apple-double-avoidance). Closed PR #21 (Mac SD card investigation concluded). Updated roadmap: branch table, priorities, SD card status. Ported TCP migration files to main. Lab test: `mkfs.fat` (dosfstools) final Mac SD card attempt. |
 | 2026-03-05 | **Mac SD Card Investigation Closed** — Lab-tested two additional fixes from PR #21: `dot_clean -m` (removes `._*` AppleDouble files) and `fatsort` (compacts FAT32 directory entries). Both failed on G4.1 controller. Windows confirmed still working. Reverted all experimental changes. Posted results on PR #21. |
 | 2026-03-02 | **Lab Test: Windows ✅ Mac ❌** — Windows SD card works perfectly on G4.1 controller. Mac card fails (no patterns display) despite byte-exact files. Root cause: macOS `.Spotlight-V100` directory in FAT32 root is undeletable (OS + CrowdStrike locks). Tried: Spotlight disable, nobrowse mount, fseventsd cleanup, hdiutil disk image, dosfstools — all blocked by permissions. Current recommendation: format on Windows. |
 | 2026-03-01 | **macOS Dot-File Fix & SD Test Suite** — Fixed `._*` AppleDouble resource fork files corrupting FAT32 dirIndex on Mac (auto-deleted after copy, filtered from verification). Created `test_sd_card_deployment.m` (automated, ~15 tests, supports real SD via `UseRealSD`). Removed 5 obsolete test/example scripts. Lab test plan for Mar 2. |
