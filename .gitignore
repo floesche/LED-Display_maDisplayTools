@@ -17,3 +17,7 @@ configs/arenas/startfield_dots.mat
 
 # Test logs (MANIFEST artifacts from SD card testing)
 tests/logs/
+
+# Benchmark result files
+benchmark_*.mat
+simple_comparison_*.mat
