@@ -114,9 +114,9 @@ end
 
 function r = test_command(fn, n, delay)
 %TEST_COMMAND Test a command n times and return stats
-%   delay - optional pause between commands (default: 0.05s for reliability)
+%   delay - optional pause between commands (default: 0.15s for WiFi reliability)
     if nargin < 3
-        delay = 0.05;
+        delay = 0.15;
     end
 
     passed = 0;
