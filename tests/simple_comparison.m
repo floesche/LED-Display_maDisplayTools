@@ -1,8 +1,9 @@
-function results = simple_comparison(ip)
+function results = simple_comparison(ip, native_first)
 %SIMPLE_COMPARISON Simple comparison between pnet and tcpclient backends
 %
 %   results = simple_comparison()
 %   results = simple_comparison('192.168.10.62')
+%   results = simple_comparison('192.168.10.62', true)
 %
 %   A minimal test script comparing PanelsController (pnet) and
 %   PanelsControllerNative (tcpclient) implementations on G4.1/Teensy.
@@ -13,13 +14,15 @@ function results = simple_comparison(ip)
 %   - streamFrame (large packet test, ~3176 bytes)
 %
 %   Inputs:
-%       ip - Host IP address (default: '192.168.10.62')
+%       ip           - Host IP address (default: '192.168.10.62')
+%       native_first - If true, run native before pnet (default: false)
 %
 %   Output:
 %       results - Struct with comparison results
 
     arguments
         ip (1,:) char = '192.168.10.62'
+        native_first (1,1) logical = false
     end
 
     fprintf('\n');
@@ -27,38 +30,26 @@ function results = simple_comparison(ip)
     fprintf('   Simple TCP Backend Comparison\n');
     fprintf('========================================\n');
     fprintf('Host: %s\n', ip);
+    if native_first
+        fprintf('Order: native first, then pnet\n');
+    else
+        fprintf('Order: pnet first, then native\n');
+    end
     fprintf('========================================\n');
 
     results = struct();
     results.ip = ip;
+    results.native_first = native_first;
     results.timestamp = datetime('now');
 
-    %% Test pnet version
-    fprintf('\n--- PanelsController (pnet) ---\n');
-    try
-        pc = PanelsController(ip);
-        pc.open(false);
-        results.pnet = run_simple_tests(pc, 'pnet');
-        pc.close(true);
-        results.pnet.error = [];
-    catch ME
-        fprintf('ERROR: %s\n', ME.message);
-        results.pnet.error = ME.message;
-    end
-
-    pause(2);  % Recovery between backends
-
-    %% Test native version
-    fprintf('\n--- PanelsControllerNative (tcpclient) ---\n');
-    try
-        pcn = PanelsControllerNative(ip);
-        pcn.open(false);
-        results.native = run_simple_tests(pcn, 'native');
-        pcn.close(true);
-        results.native.error = [];
-    catch ME
-        fprintf('ERROR: %s\n', ME.message);
-        results.native.error = ME.message;
+    if native_first
+        results.native = run_backend('native', ip);
+        pause(2);
+        results.pnet = run_backend('pnet', ip);
+    else
+        results.pnet = run_backend('pnet', ip);
+        pause(2);
+        results.native = run_backend('native', ip);
     end
 
     %% Print comparison summary
@@ -68,6 +59,26 @@ function results = simple_comparison(ip)
     filename = sprintf('simple_comparison_%s.mat', datestr(now, 'yyyy-mm-dd_HHMMSS'));
     save(filename, 'results');
     fprintf('\nResults saved to: %s\n', filename);
+end
+
+
+function r = run_backend(name, ip)
+%RUN_BACKEND Create controller, run tests, close
+    fprintf('\n--- %s ---\n', name);
+    try
+        if strcmp(name, 'native')
+            pc = PanelsControllerNative(ip);
+        else
+            pc = PanelsController(ip);
+        end
+        pc.open(false);
+        r = run_simple_tests(pc, name);
+        pc.close(true);
+        r.error = [];
+    catch ME
+        fprintf('ERROR: %s\n', ME.message);
+        r.error = ME.message;
+    end
 end
 
 
