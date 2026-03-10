@@ -27,14 +27,13 @@
 | Branch | Purpose | Status | Notes |
 |--------|---------|--------|-------|
 | `main` | Primary development | Active | G6 tools, V2 protocol, pattern tools all merged |
-| `claude/switchable-tcp-controller-qQRKM` | TCP migration (pnet vs tcpclient) | Lab tested | Files ported to main; both backends equivalent |
 | `addReattempts` | Experiment retry logic | Active | Lisa's branch, 1 unmerged commit |
 | `version2Updates` | V2 protocol reference | Merged | Lisa's V2 work, kept for reference |
 | `pcontrol` | PControl GUI work | TBD | Not yet started |
 
 **Branch workflow**: Feature branches → PR → merge to `main`
 
-**Recently deleted** (Mar 9): `feature/g6-tools` (merged via PRs #17, #18), `g41-controller-update` (stale), `fix/mode3-trialparams` (merged), `remove-pattern-in-root-fs` (merged via PR #20), `apple-double-avoidance` (PR #21 closed — Mac SD card investigation concluded)
+**Recently deleted** (Mar 9): `feature/g6-tools` (merged via PRs #17, #18), `g41-controller-update` (stale), `fix/mode3-trialparams` (merged), `remove-pattern-in-root-fs` (merged via PR #20), `apple-double-avoidance` (PR #21 closed), `claude/switchable-tcp-controller-qQRKM` (lab tested, files on main)
 
 ---
 
@@ -82,7 +81,7 @@ Build a regression test suite to prevent regressions now that core tools are on 
 - [x] Phase 2: Arena config system — merged via PR #18 (core-integration)
 - [ ] Phase 3: SD card tools — Windows workflow complete, Mac blocked (see In-Flight #3)
 - [ ] Phase 4: Experiment workflow — Lisa's V2 updates merged; `addReattempts` branch in progress
-- [ ] Phase 5: TCP migration — `PanelsControllerNative.m` porting to main (see In-Flight #1)
+- [x] Phase 5: TCP migration — `PanelsControllerNative.m` on main, lab tested (see In-Flight #1)
 - [x] Close stale branches — done Mar 9 (5 branches deleted)
 - [x] Post-merge: Remove deprecated controller functions (`startG41Trial` deprecated in favor of `trialParams`)
 
@@ -98,7 +97,7 @@ These are started projects that need to be picked up and completed.
 
 ### 1. TCP Migration Testing
 
-**Branch**: `claude/switchable-tcp-controller-qQRKM` (files ported to main)
+**Branch**: Deleted (files ported to main)
 
 **Status**: Lab tested Mar 9. Both backends equivalent reliability. Timing comparison inconclusive (fire-and-forget protocol). tcpclient is a valid drop-in replacement for pnet.
 
@@ -117,8 +116,7 @@ These are started projects that need to be picked up and completed.
 **To Pick Up**:
 1. Decision: merge PanelsControllerNative as default or keep as parallel option
 2. Report findings to Peter/Frank
-3. Delete `claude/switchable-tcp-controller-qQRKM` branch (all files on main)
-4. Document maximum reliable streaming rate (needs dedicated session)
+3. Document maximum reliable streaming rate (needs dedicated session)
 
 **Files**: `controller/PanelsControllerNative.m`, `tests/simple_comparison.m`, `tests/benchmark_streaming.m`, `docs/tcp_migration_plan.md`
 
@@ -200,7 +198,7 @@ These are started projects that need to be picked up and completed.
 **Remaining Branches**:
 | Branch | Status | Action |
 |--------|--------|--------|
-| `claude/switchable-tcp-controller-qQRKM` | Lab tested | Files on main; can delete branch |
+| ~~`claude/switchable-tcp-controller-qQRKM`~~ | Deleted | Files on main (Mar 9) |
 | `addReattempts` | Active | Lisa's experiment retry — merge when ready |
 | `pcontrol` | Not started | Keep for future PControl work |
 
