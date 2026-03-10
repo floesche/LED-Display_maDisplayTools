@@ -27,7 +27,7 @@
 | Branch | Purpose | Status | Notes |
 |--------|---------|--------|-------|
 | `main` | Primary development | Active | G6 tools, V2 protocol, pattern tools all merged |
-| `claude/switchable-tcp-controller-qQRKM` | TCP migration (pnet vs tcpclient) | Testing | Needs lab time |
+| `claude/switchable-tcp-controller-qQRKM` | TCP migration (pnet vs tcpclient) | Lab tested | Files ported to main; both backends equivalent |
 | `addReattempts` | Experiment retry logic | Active | Lisa's branch, 1 unmerged commit |
 | `version2Updates` | V2 protocol reference | Merged | Lisa's V2 work, kept for reference |
 | `pcontrol` | PControl GUI work | TBD | Not yet started |
@@ -98,27 +98,27 @@ These are started projects that need to be picked up and completed.
 
 ### 1. TCP Migration Testing
 
-**Branch**: `claude/switchable-tcp-controller-qQRKM`
+**Branch**: `claude/switchable-tcp-controller-qQRKM` (files ported to main)
 
-**Status**: Parallel implementations created and basic testing done. More careful testing needed.
+**Status**: Lab tested Mar 9. Both backends equivalent reliability. Timing comparison inconclusive (fire-and-forget protocol). tcpclient is a valid drop-in replacement for pnet.
 
 **Current State**:
 - `PanelsController.m` (pnet) — unchanged, working
-- `PanelsControllerNative.m` (tcpclient) — new, basic tests pass
-- Both backends perform comparably in benchmarks
+- `PanelsControllerNative.m` (tcpclient) — lab tested on Mac (WiFi) and Windows (wired), 198-199/200 reliability
+- Nagle fix applied: `EnableTransferDelay=false` (TCP_NODELAY)
+- Both backends work from Mac and Windows directly to G4.1 controller (no G4 Host intermediary)
 
 **Known Issues**:
-- Controller locks up if streaming >10 FPS
-- Need 50ms delay between commands for reliability
+- Controller locks up if streaming >5 FPS over WiFi, ~10 FPS over wired
+- Need 150ms delay between commands for WiFi reliability (50ms sufficient for wired)
 - `sendDisplayReset`, `resetCounter` are NOT G4.1 commands
+- Fire-and-forget writes make timing comparison meaningless (measures buffer, not round-trip)
 
 **To Pick Up**:
-1. Need lab time with hardware to test properly
-2. Run `tests/simple_comparison.m` to verify both backends still work
-3. Investigate FPS limitation — create `tests/benchmark_large_patterns.m`
-4. Document maximum reliable streaming rate
-5. Report findings to Peter/Frank
-6. Decision: merge PanelsControllerNative or keep as parallel option
+1. Decision: merge PanelsControllerNative as default or keep as parallel option
+2. Report findings to Peter/Frank
+3. Delete `claude/switchable-tcp-controller-qQRKM` branch (all files on main)
+4. Document maximum reliable streaming rate (needs dedicated session)
 
 **Files**: `controller/PanelsControllerNative.m`, `tests/simple_comparison.m`, `tests/benchmark_streaming.m`, `docs/tcp_migration_plan.md`
 
@@ -166,7 +166,7 @@ These are started projects that need to be picked up and completed.
 - ❌ `dot_clean -m` (removes `._*` files): controller still fails (Mar 5)
 - ❌ `dot_clean -m` + `fatsort` (compacts FAT32 dir entries): controller still fails (Mar 5)
 - ❌ `xattr -c`, 7 copy methods, Spotlight disable, nobrowse mounts: all failed (Mar 3-5)
-- 🔬 Final test: `mkfs.fat` (dosfstools) with sudo — testing Mar 9
+- ❌ `mkfs.fat` (dosfstools) with BPB patching: near-identical to Windows BPB, still fails (Mar 9)
 
 **Recommendation**: Format and deploy SD cards on **Windows or Linux only**. Mac MATLAB software (staging, manifest, dot-file cleanup) works correctly — the issue is macOS FAT32 filesystem artifacts that the G4.1 firmware cannot handle. Long-term fix: firmware filename-based pattern access (Peter working on this).
 
@@ -200,7 +200,7 @@ These are started projects that need to be picked up and completed.
 **Remaining Branches**:
 | Branch | Status | Action |
 |--------|--------|--------|
-| `claude/switchable-tcp-controller-qQRKM` | Testing | Port key files to main, test on hardware |
+| `claude/switchable-tcp-controller-qQRKM` | Lab tested | Files on main; can delete branch |
 | `addReattempts` | Active | Lisa's experiment retry — merge when ready |
 | `pcontrol` | Not started | Keep for future PControl work |
 
@@ -337,7 +337,7 @@ SD card named "PATSD", FAT32. Patterns written BEFORE manifest files (FAT32 dirI
 
 | Date | Change |
 |------|--------|
-| 2026-03-09 | **Housekeeping & Documentation Refresh** — Deleted 5 stale branches (feature/g6-tools, g41-controller-update, fix/mode3-trialparams, remove-pattern-in-root-fs, apple-double-avoidance). Closed PR #21 (Mac SD card investigation concluded). Updated roadmap: branch table, priorities, SD card status. Ported TCP migration files to main. Lab test: `mkfs.fat` (dosfstools) final Mac SD card attempt. |
+| 2026-03-09 | **TCP Migration Lab Testing & SD Card Final Attempt** — Lab-tested pnet vs tcpclient on G4.1 from Mac (WiFi) and Windows (wired): both backends equivalent reliability (198-199/200). Timing comparison inconclusive (fire-and-forget protocol). Applied Nagle fix (`EnableTransferDelay=false`). Developed streaming benchmark (animated frames, 10s runs) and improved command comparison (50 iterations, median/std stats). `mkfs.fat` final Mac SD card attempt also failed — investigation definitively closed. Deleted 5 stale branches, closed PR #21. |
 | 2026-03-05 | **Mac SD Card Investigation Closed** — Lab-tested two additional fixes from PR #21: `dot_clean -m` (removes `._*` AppleDouble files) and `fatsort` (compacts FAT32 directory entries). Both failed on G4.1 controller. Windows confirmed still working. Reverted all experimental changes. Posted results on PR #21. |
 | 2026-03-02 | **Lab Test: Windows ✅ Mac ❌** — Windows SD card works perfectly on G4.1 controller. Mac card fails (no patterns display) despite byte-exact files. Root cause: macOS `.Spotlight-V100` directory in FAT32 root is undeletable (OS + CrowdStrike locks). Tried: Spotlight disable, nobrowse mount, fseventsd cleanup, hdiutil disk image, dosfstools — all blocked by permissions. Current recommendation: format on Windows. |
 | 2026-03-01 | **macOS Dot-File Fix & SD Test Suite** — Fixed `._*` AppleDouble resource fork files corrupting FAT32 dirIndex on Mac (auto-deleted after copy, filtered from verification). Created `test_sd_card_deployment.m` (automated, ~15 tests, supports real SD via `UseRealSD`). Removed 5 obsolete test/example scripts. Lab test plan for Mar 2. |

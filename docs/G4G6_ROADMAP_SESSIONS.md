@@ -2146,3 +2146,82 @@ The Mac SD card failure goes beyond `._*` files and FAT32 directory entry orderi
 - `docs/G4G6_ROADMAP.md` — changelog entry, updated date
 - `docs/G4G6_ROADMAP_SESSIONS.md` — this session log
 - `MEMORY.md` — updated with definitive Mac SD card findings
+
+---
+
+## Session: Mar 9, 2026 — TCP Migration Lab Testing & SD Card Final Attempt
+
+### Summary
+Lab-tested TCP migration (pnet vs tcpclient) on G4.1 controller from both Mac (WiFi) and Windows (wired). Developed streaming and command benchmarks. Concluded both backends are functionally equivalent — timing comparison inconclusive due to fire-and-forget protocol. Also attempted final Mac SD card fix (`mkfs.fat` from dosfstools) — failed.
+
+### SD Card: `mkfs.fat` Final Attempt
+
+Hypothesis: macOS `newfs_msdos` (used by `diskutil eraseDisk`) may create non-standard FAT32 metadata. Linux-style `mkfs.fat` might produce a more compatible filesystem.
+
+| Test | Method | Result |
+|------|--------|--------|
+| mkfs.fat format | `sudo mkfs.fat -F 32 -n PATSD /dev/diskNsN` | **FAIL** — controller shows no patterns |
+| mkfs.fat + BPB patch | Patched OEM ID to MSDOS5.0, hidden sectors to 2048 (matching Windows BPB) | **FAIL** — controller still fails |
+| Control | Windows-prepared card (same patterns) | **PASS** |
+
+BPB comparison showed near-identical fields between mkfs.fat and Windows format. Remaining difference: macOS kernel-level writes (`.Spotlight-V100`, dir entry metadata) that cannot be prevented from userspace.
+
+**Conclusion**: Mac SD card investigation definitively closed. Posted findings to GitHub issue #16.
+
+### TCP Migration: Streaming Benchmark (`benchmark_streaming.m`)
+
+Multiple iterations to get reliable benchmarks:
+1. Initial run at 5 FPS → controller lockup, broken pipe crash at `stopDisplay()`. Fixed: wrapped in try/catch.
+2. Reduced from 30s×6 FPS levels to 10s×4 levels (1,2,5,10 FPS) — controller too flaky for aggressive tests.
+3. Replaced static patterns with animated 48-frame scrolling stripe (full screen, 24-col bright band).
+
+**Mac (WiFi) results**: Flaky at >5 FPS, controller locks up. Not suitable for streaming benchmarks over WiFi.
+
+**Windows (wired) results**:
+- pnet: 0-1 errors per level, SendAvg 23-32ms
+- tcpclient: 0-1 errors, SendAvg drops to 0.7ms at 10 FPS (misleading — async buffering)
+
+**Finding**: tcpclient `write()` returns before data is actually transmitted. The SendAvg metric measures buffer time, not transmission time. This makes direct timing comparison meaningless.
+
+### TCP Migration: Command Benchmark (`simple_comparison.m`)
+
+Evolved through several iterations:
+1. Bumped iterations from 10 to 50 for statistical significance
+2. Changed `test_command` to return struct with mean, median, std, full times array
+3. Increased inter-command delay from 50ms to 150ms (WiFi reliability)
+4. Added `native_first` flag to test order bias
+
+**Mac (WiFi) results**: Both backends 198-199/200, timing similar (3.9-28ms pnet, 5.0-29ms native). No meaningful difference.
+
+**Windows (wired) results**: Both 199/200. Native consistently ~10-13ms slower per command.
+- Diagnosed as **Nagle's algorithm** — tcpclient buffers small writes by default
+- Fixed: `EnableTransferDelay=false` (TCP_NODELAY) in `PanelsControllerNative.m`
+- Post-fix: Results still erratic. Order bias suspected (whichever runs first appears faster).
+
+### Key Findings
+
+1. **Both backends equivalent in reliability**: 198-199/200 commands succeed on both Mac and Windows
+2. **Timing comparison inconclusive**: Fire-and-forget writes (no controller ACK) mean timing only measures `write()` to kernel buffer, not actual round-trip latency
+3. **tcpclient is valid drop-in replacement for pnet**: No reliability penalty, works on both platforms
+4. **Nagle's algorithm matters**: Must set `EnableTransferDelay=false` for responsive control
+5. **Controller streaming limit**: ~5 FPS over WiFi, ~10 FPS over wired (needs more testing)
+6. **Meaningful latency testing**: Would require firmware-level ACK protocol — out of scope
+
+### Decision Pending
+- Merge `PanelsControllerNative` as default controller, or keep both as parallel options?
+- `claude/switchable-tcp-controller-qQRKM` branch can be deleted (files already on main)
+
+### Commits
+- `2bfbd91` — Improve streaming benchmark: animated frames, 10s runs, robust cleanup
+- `d86058e` — Boost simple_comparison to 50 iterations with median/std stats
+- `e75e5f1` — Increase inter-command delay to 150ms for WiFi reliability
+- `a4c3773` — Disable Nagle's algorithm in PanelsControllerNative (TCP_NODELAY)
+- `ac17c13` — Add native_first flag to simple_comparison for order bias testing
+
+### Files Modified
+- `tests/benchmark_streaming.m` — animated frames, shorter duration, robust cleanup
+- `tests/simple_comparison.m` — 50 iterations, median/std stats, 150ms delay, native_first flag
+- `controller/PanelsControllerNative.m` — Nagle fix (EnableTransferDelay=false)
+- `.gitignore` — added benchmark_*.mat, simple_comparison_*.mat
+- `docs/G4G6_ROADMAP.md` — TCP status update, changelog
+- `docs/G4G6_ROADMAP_SESSIONS.md` — this session log
