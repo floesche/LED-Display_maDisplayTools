@@ -15,7 +15,7 @@ experiment_info:
 # ============================================================================
 # ARENA CONFIGURATION
 # ============================================================================
-rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/test_rig_1.yaml' # REPLACE THIS BEFORE USE
+rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/example_rig.yaml' # REPLACE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
@@ -27,6 +27,11 @@ plugins:
     type: "script"
     script_path: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/examples/SimpleYamlExperimentDemo/test_analysis_script.m'
     script_type: "function"
+
+  - name: "camera"
+    type: "class"
+    matlab:
+      class: "BiasPlugin"
 # ============================================================================
 # EXPERIMENT STRUCTURE
 # ============================================================================

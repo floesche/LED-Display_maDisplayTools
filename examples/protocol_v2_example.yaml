@@ -15,7 +15,7 @@ experiment_info:
 # ============================================================================
 # ARENA CONFIGURATION
 # ============================================================================
-rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/test_rig_1.yaml' # UPDATE THIS BEFORE USE
+rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/example_rig.yaml' # UPDATE THIS BEFORE USE
 
 # ============================================================================
 # PLUGIN DEFINITIONS
@@ -38,7 +38,7 @@ plugins:
   - name: "camera"
     type: "class"
     matlab:
-      class: "maDisplayTools.plugins.SimpleBias"
+      class: "BiasPlugin"
     # python: WOULD USE THIS IF PYTHON CLASS
     #   module: "pyDisplayTools.plugins.SimpleBias"
     #   class: "SimpleBias"
@@ -57,17 +57,17 @@ plugins:
   - name: "backlight"
     type: "class"
     matlab:
-      class: "maDisplayTools.plugins.LEDControllerPlugin"
+      class: "LEDControllerPlugin"
 
   # Script Plugin - Custom preprocessing
   - name: "preprocessing"
     type: "script"
-    script_path: './user_functions/preprocess_data'
+    script_path: './user_functions/preprocess_data' #example, does not exist
 
   # Script Plugin - Post-trial analysis
   - name: "analysis"
     type: "script"
-    script_path: './user_functions/analyze_trial'
+    script_path: './user_functions/analyze_trial' #example, does not exist
 
 # ============================================================================
 # EXPERIMENT STRUCTURE
