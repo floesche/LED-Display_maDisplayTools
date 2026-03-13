@@ -20,6 +20,6 @@ plugins:
     ip: "10.102.40.61"
     port: 62222
     config_file: 'C:\Users\labadmin\Documents\FlyBowl1Rig\bias_config_default1.json'
-    executable_file: 'C:\Users\labadmin\Documents\FlyBowl1Rig\BIAS_exe_spinnaker_win64_v0_73_1\v0.73.1\test_gui.exe'
+    bias_executable: 'C:\Users\labadmin\Documents\FlyBowl1Rig\BIAS_exe_spinnaker_win64_v0_73_1\v0.73.1\test_gui.exe'
   temperature:
     enabled: false
