@@ -276,12 +276,12 @@ classdef ProtocolRunner < handle
             
             if isempty(self.protocolData.plugins)
                 self.logger.log('INFO', 'No plugins defined in protocol');
-                self.pluginManager = PluginManager(self.logger);
+                self.pluginManager = PluginManager(self.logger, self.experimentDir);
                 return;
             end
             
             self.logger.log('INFO', 'Initializing plugins...');
-            self.pluginManager = PluginManager(self.logger);
+            self.pluginManager = PluginManager(self.logger, self.experimentDir);
             
             plugins = self.protocolData.plugins;
             for i = 1:length(plugins)

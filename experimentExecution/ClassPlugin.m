@@ -41,7 +41,7 @@ classdef ClassPlugin < handle
         className      % Name of user's class
         classInstance  % Instance of user's class
         config         % Configuration struct for the class
-        experimentDir  % Experiment directory where any output files/folders are saved
+        saveDir        % Directory where any output files/folders are saved
     end
     
     methods
@@ -210,10 +210,10 @@ classdef ClassPlugin < handle
                 self.config = struct();
             end
 
-            if isfield(self.config, 'experimentDir')
-                self.experimentDir = self.config.experimentDir;
+            if isfield(self.config, 'saveDir')
+                self.saveDir = self.config.saveDir;
             else
-                self.experimentDir = pwd;
+                self.saveDir = pwd;
             end
         end
         

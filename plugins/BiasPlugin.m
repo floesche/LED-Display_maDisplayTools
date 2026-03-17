@@ -144,7 +144,7 @@ classdef BiasPlugin < handle
         biasControl       % BiasControl instance
         biasExecutable    % Path to BIAS executable
         biasLogFile       % Path to BIAS timestamp log file (optional)
-        experimentDir     % Path to experiment folder for saving videos
+        saveDir           % Path where videos are saved (experiment folder by default)
         isCritical        % A failure of the camera halts the experiment if true. Default: true
         isConnected       % Connection status flag
         isRecording       % Recording status flag
@@ -327,7 +327,7 @@ classdef BiasPlugin < handle
             status.hasBiasControl = ~isempty(self.biasControl);
             status.biasExecutable = self.biasExecutable;
             status.logFile = self.biasLogFile;
-            status.experimentFolder = self.experimentDir;
+            status.saveFolder = self.saveDir;
         end
         
         function type = getPluginType(self)
@@ -355,19 +355,19 @@ classdef BiasPlugin < handle
                       self.name);
             end
             
-            % Extract experiment directory
-            if isfield(self.config, 'experimentDir')
-                self.experimentDir = self.config.experimentDir;
+            % Extract save directory for video
+            if isfield(self.config, 'saveDir')
+                self.saveDir = self.config.saveDir;
             else
-                self.experimentDir = pwd;
+                self.saveDir = pwd;
             end
 
             if isfield(self.config, 'log_file')
                 self.biasLogFile = self.config.log_file;
             else
-                %default to experimentDir/logs/<pluginName>_<timestamp>.log
+                %default to saveDir/logs/<pluginName>_<timestamp>.log
                 ts = char(datetime('now','Format','yyyyMMdd_HHmmss'));
-                self.biasLogFile = fullfile(self.experimentDir, 'logs', sprintf('%s_%s.log', self.name, ts));
+                self.biasLogFile = fullfile(self.saveDir, 'logs', sprintf('%s_%s.log', self.name, ts));
             end
             
             % Extract video extension if provided
@@ -408,7 +408,7 @@ classdef BiasPlugin < handle
                 end
                 
                 % Give BIAS time to start up
-                pause(2);
+                pause(5);
                 
                 self.logger.log('INFO', sprintf('[%s] BIAS executable launched', ...
                     self.name));
@@ -557,9 +557,9 @@ classdef BiasPlugin < handle
                 filename = self.ensureExtension(filename, self.videoExtension);
                 
                 % Use experiment folder if available
-                if ~isempty(self.experimentDir)
-                    videoPath = fullfile(self.experimentDir, 'videos', filename);
-                    mkdir(fullfile(self.experimentDir, 'videos'));
+                if ~isempty(self.saveDir)
+                    videoPath = fullfile(self.saveDir, 'videos', filename);
+                    mkdir(fullfile(self.saveDir, 'videos'));
                 else
                     videoPath = fullfile(pwd, filename);  % Use relative path
                 end
@@ -693,7 +693,7 @@ classdef BiasPlugin < handle
             
             % Check if experiment folder is set (unless using absolute path)
             filename = params.filename;
-            if ~self.isAbsolutePath(filename) && isempty(self.experimentDir)
+            if ~self.isAbsolutePath(filename) && isempty(self.saveDir)
                 self.logger.log('WARNING', sprintf('[%s] Experiment folder not set, using relative path', ...
                     self.name));
             end
@@ -755,8 +755,8 @@ classdef BiasPlugin < handle
             end
             
             % Construct full path in experiment folder if available
-            if ~isempty(self.experimentDir)
-                configPath = fullfile(self.experimentDir, configFile);
+            if ~isempty(self.saveDir)
+                configPath = fullfile(self.saveDir, configFile);
             else
                 configPath = configFile;  % Save in current directory
             end

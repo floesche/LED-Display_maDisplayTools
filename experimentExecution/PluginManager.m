@@ -10,10 +10,11 @@ classdef PluginManager < handle
     properties (Access = private)
         pluginRegistry      % containers.Map: plugin ID -> Plugin object
         logger              % ExperimentLogger instance
+        experimentDir
     end
     
     methods (Access = public)
-        function self = PluginManager(logger)
+        function self = PluginManager(logger, experimentDir)
             % Constructor
             %
             % Input Arguments:
@@ -21,6 +22,7 @@ classdef PluginManager < handle
             
             self.pluginRegistry = containers.Map();
             self.logger = logger;
+            self.experimentDir = experimentDir;
         end
         
         function initializePlugin(self, pluginDef)
@@ -52,6 +54,14 @@ classdef PluginManager < handle
 
             self.logger.log('INFO', sprintf('Initializing %s plugin: %s', ...
                 pluginType, pluginName));
+
+            % Inject experimentDir into plugin config before constructing
+            if ~isfield(pluginDef, 'config') || isempty(pluginDef.config)
+                pluginDef.config = struct();
+            end
+            if ~isfield(pluginDef.config, 'saveDir') || isempty(pluginDef.config.saveDir)
+                pluginDef.config.saveDir = self.experimentDir;
+            end
 
             switch pluginType
 
