@@ -571,13 +571,11 @@ classdef BiasPlugin < handle
                 % Use absolute path as-is
                 videoPath = filename;
             else
-                % Ensure extension
-                filename = self.ensureExtension(filename, self.videoExtension);
+         
                 
                 % Use experiment folder if available
                 if ~isempty(self.saveDir)
-                    videoPath = fullfile(self.saveDir, 'videos', filename);
-                    mkdir(fullfile(self.saveDir, 'videos'));
+                    videoPath = fullfile(self.saveDir, filename);
                 else
                     videoPath = fullfile(pwd, filename);  % Use relative path
                 end
@@ -831,28 +829,6 @@ classdef BiasPlugin < handle
                 error('BiasPlugin:NotConnected', ...
                       '[%s] Not connected to BIAS. Call connect command first.', ...
                       self.name);
-            end
-        end
-        
-        function filename = ensureExtension(self, filename, extension)
-            % Ensure filename has the correct extension
-            %
-            % Args:
-            %   filename - Input filename (string)
-            %   extension - Desired extension including dot (string)
-            %
-            % Returns:
-            %   filename - Filename with correct extension (string)
-            
-            [~, ~, ext] = fileparts(filename);
-            
-            if isempty(ext)
-                % No extension, add it
-                filename = [filename, extension];
-            elseif ~strcmpi(ext, extension)
-                % Wrong extension, warn but keep it
-                self.logger.log('WARNING', sprintf('[%s] File has extension %s, expected %s', ...
-                    self.name, ext, extension));
             end
         end
         
