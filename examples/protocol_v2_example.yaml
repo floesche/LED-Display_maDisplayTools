@@ -39,6 +39,11 @@ plugins:
     type: "class"
     matlab:
       class: "BiasPlugin"
+    config: # Optional - required config is in rig yaml. This config is for optional settings that may 
+            # change between experiments. Values here that contradict rig yaml will override rig yaml.
+      saveDir: 'path/to/save/videos' # Optional, default is in experiment yaml's location. 
+      frame_rate: 150 # Optional, default is 100, a value outside of 10-200 will produce warning
+    
     # python: WOULD USE THIS IF PYTHON CLASS
     #   module: "pyDisplayTools.plugins.SimpleBias"
     #   class: "SimpleBias"

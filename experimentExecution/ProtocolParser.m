@@ -415,6 +415,13 @@ classdef ProtocolParser < handle
                     end
                 end
             end
+
+            if isfield(plugin, 'config') && isfield(plugin.config, 'frame_rate')
+                if plugin.config.frame_rate <= 0
+                    self.throwValidationError('Class plugin "%s" frame rate %g is invalid.', ...
+                        plugin.name, plugin.config.frame_rate);
+                end
+            end
         end
         
         function validateScriptPlugin(self, plugin)

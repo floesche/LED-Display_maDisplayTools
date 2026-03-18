@@ -150,6 +150,7 @@ classdef BiasPlugin < handle
         isRecording       % Recording status flag
         isCapturing       % Capture status flag
         videoExtension    % Default video file extension
+        frameRate         % Default frame rate is 100
     end
     
     methods
@@ -169,6 +170,7 @@ classdef BiasPlugin < handle
             self.isRecording = false;
             self.isCapturing = false;
             self.videoExtension = '.avi';  % Default extension
+            self.frameRate = 100; % Default frame rate
             
             
             % Extract configuration
@@ -379,6 +381,14 @@ classdef BiasPlugin < handle
                 self.videoExtension = ext;
             end
 
+            if isfield(self.config, 'frame_rate')
+                self.frameRate = self.config.frame_rate;
+                if self.frameRate < 10 || self.frameRate > 200
+                    self.logger.log('WARNING', sprintf('[%s] BIAS frame rate of %g falls outside typical range of 10-200', ...
+                        self.name, self.frameRate));
+                end
+            end
+
              % Optional: critical flag (default true)
             if isfield(self.config, 'critical')
                 self.isCritical = self.config.critical;
@@ -457,6 +467,14 @@ classdef BiasPlugin < handle
             % Connect
             self.biasControl.connect();
             self.isConnected = true;
+            pause(2);
+            
+            % Initialize camera format using the configured video extension
+            movieFormat = strrep(self.videoExtension, '.', '');  % '.avi' -> 'avi'
+            self.biasControl.initializeCamera(self.frameRate, movieFormat);
+            
+            self.logger.log('INFO', sprintf('[%s] Camera initialized with format: %s', ...
+                self.name, movieFormat));
             
             self.logger.log('INFO', sprintf('[%s] Connected to BIAS', self.name));
             
