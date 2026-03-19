@@ -28,7 +28,7 @@ classdef LEDControllerPlugin < handle
     %         command_name: "setRedLEDPower"
     %         params:
     %           power: 5
-    %           power_backoff: 0
+    %           panel_num: 0
     %           pattern: "1010"
     %       
     %       - type: "plugin"
@@ -43,9 +43,9 @@ classdef LEDControllerPlugin < handle
     %
     % Available Commands:
     %   - setIRLEDPower: Set IR LED power (params.power: 0-100)
-    %   - setRedLEDPower: Set red LED (params.power, power_backoff, pattern)
-    %   - setGreenLEDPower: Set green LED (params.power, power_backoff, pattern)
-    %   - setBlueLEDPower: Set blue LED (params.power, power_backoff, pattern)
+    %   - setRedLEDPower: Set red LED (params.power, panel_num, pattern)
+    %   - setGreenLEDPower: Set green LED (params.power, panel_num, pattern)
+    %   - setBlueLEDPower: Set blue LED (params.power, panel_num, pattern)
     %   - turnOnLED: Turn on LED
     %   - turnOffLED: Turn off LED
     
@@ -128,9 +128,9 @@ classdef LEDControllerPlugin < handle
             %
             % Available commands:
             %   - "setIRLEDPower": params.power (0-100)
-            %   - "setRedLEDPower": params.power, power_backoff, pattern
-            %   - "setGreenLEDPower": params.power, power_backoff, pattern
-            %   - "setBlueLEDPower": params.power, power_backoff, pattern
+            %   - "setRedLEDPower": params.power, panel_num, pattern
+            %   - "setGreenLEDPower": params.power, panel_num, pattern
+            %   - "setBlueLEDPower": params.power, panel_num, pattern
             %   - "turnOnLED": no params
             %   - "turnOffLED": no params
             
@@ -161,50 +161,46 @@ classdef LEDControllerPlugin < handle
                         
                     case 'setRedLEDPower'
                         % params.power (required)
-                        % params.power_backoff (optional, default 0)
+                        % params.panel_num (optional, default 0)
                         % params.pattern (optional, default '')
                         if ~isfield(params, 'power')
                             error('Missing required parameter: power');
                         end
-                        power_backoff = 0;
-                        pattern = '';
-                        if isfield(params, 'power_backoff')
-                            power_backoff = params.power_backoff;
+                        if isfield(params, 'panel_num') && isfield(params, 'pattern')
+                            self.controller.setRedLEDPower(params.power, params.panel_num, params.pattern);
+                        elseif isfield(params, 'panel_num')
+                            self.controller.setRedLEDPower(params.power, params.panel_num);
+                        else
+                            self.controller.setRedLEDPower(params.power);
                         end
-                        if isfield(params, 'pattern')
-                            pattern = params.pattern;
-                        end
-                        self.controller.setRedLEDPower(params.power, power_backoff, pattern);
                         
                     case 'setGreenLEDPower'
                         % Same signature as setRedLEDPower
                         if ~isfield(params, 'power')
                             error('Missing required parameter: power');
                         end
-                        power_backoff = 0;
-                        pattern = '';
-                        if isfield(params, 'power_backoff')
-                            power_backoff = params.power_backoff;
+                        if isfield(params, 'panel_num') && isfield(params, 'pattern')
+                            self.controller.setGreenLEDPower(params.power, params.panel_num, params.pattern);
+                        elseif isfield(params, 'panel_num')
+                            self.controller.setGreenLEDPower(params.power, params.panel_num);
+                        else
+                            self.controller.setGreenLEDPower(params.power);
                         end
-                        if isfield(params, 'pattern')
-                            pattern = params.pattern;
-                        end
-                        self.controller.setGreenLEDPower(params.power, power_backoff, pattern);
+
                         
                     case 'setBlueLEDPower'
                         % Same signature as setRedLEDPower
                         if ~isfield(params, 'power')
                             error('Missing required parameter: power');
                         end
-                        power_backoff = 0;
-                        pattern = '';
-                        if isfield(params, 'power_backoff')
-                            power_backoff = params.power_backoff;
+                        if isfield(params, 'panel_num') && isfield(params, 'pattern')
+                            self.controller.setBlueLEDPower(params.power, params.panel_num, params.pattern);
+                        elseif isfield(params, 'panel_num')
+                            self.controller.setBlueLEDPower(params.power, params.panel_num);
+                        else
+                            self.controller.setBlueLEDPower(params.power);
                         end
-                        if isfield(params, 'pattern')
-                            pattern = params.pattern;
-                        end
-                        self.controller.setBlueLEDPower(params.power, power_backoff, pattern);
+
                         
                     case 'turnOnLED'
                         % No parameters
@@ -213,6 +209,10 @@ classdef LEDControllerPlugin < handle
                     case 'turnOffLED'
                         % No parameters
                         self.controller.turnOffLED();
+
+                    case 'setVisibleBacklightsOff'
+                        % No parameters 
+                        self.controller.setVisibleBacklightsOff();
                         
                     otherwise
                         error('Unknown command: %s', command);

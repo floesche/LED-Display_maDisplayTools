@@ -13,7 +13,10 @@ controller:
 
 plugins:
   backlight:
-    enabled: false
+    enabled: true
+    type: "LED Controller"
+    port: 'COM6'
+    # Does backlight require other config? 
   camera:
     enabled: true
     type: "Bias"
