@@ -67,7 +67,7 @@ block:
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0001.pat"
+          pattern: "pat01_sq_grating_30deg_gs2_G4.pat"
           pattern_ID: 1
           duration: 10
           mode: 2
@@ -75,11 +75,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sq_grating_30deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0002.pat"
+          pattern: "pat02_sq_grating_30deg_gs16_G4.pat"
           pattern_ID: 2
           duration: 10
           mode: 2
@@ -87,11 +90,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sq_grating_60deg_gs2"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0003.pat"
+          pattern: "pat03_sq_grating_60deg_gs2_G4.pat"
           pattern_ID: 3
           duration: 10
           mode: 2
@@ -99,11 +105,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sq_grating_60deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0004.pat"
+          pattern: "pat04_sq_grating_60deg_gs16_G4.pat"
           pattern_ID: 4
           duration: 10
           mode: 2
@@ -111,11 +120,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sine_grating_30deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0005.pat"
+          pattern: "pat05_sine_grating_30deg_gs16_G4.pat"
           pattern_ID: 5
           duration: 10
           mode: 2
@@ -123,11 +135,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sine_grating_60deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0006.pat"
+          pattern: "pat06_sine_grating_60deg_gs16_G4.pat"
           pattern_ID: 6
           duration: 10
           mode: 2
@@ -135,11 +150,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sine_grating_30deg_fine_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0007.pat"
+          pattern: "pat07_sine_grating_30deg_fine_gs16_G4.pat"
           pattern_ID: 7
           duration: 10
           mode: 2
@@ -147,11 +165,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "sine_grating_60deg_fine_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0008.pat"
+          pattern: "pat08_sine_grating_60deg_fine_gs16_G4.pat"
           pattern_ID: 8
           duration: 10
           mode: 2
@@ -159,13 +180,16 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     # --- COUNTERS ---
 
     - id: "counter_0000_1000_gs2"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0009.pat"
+          pattern: "pat09_counter_0000_1000_gs2_G4.pat"
           pattern_ID: 9
           duration: 10
           mode: 2
@@ -173,11 +197,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "counter_0000_1000_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0010.pat"
+          pattern: "pat10_counter_0000_1000_gs16_G4.pat"
           pattern_ID: 10
           duration: 10
           mode: 2
@@ -185,13 +212,16 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     # --- LUMINANCE LEVELS ---
 
     - id: "luminance_levels_gs2"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0011.pat"
+          pattern: "pat11_luminance_levels_gs2_G4.pat"
           pattern_ID: 11
           duration: 10
           mode: 2
@@ -199,11 +229,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "luminance_levels_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0012.pat"
+          pattern: "pat12_luminance_levels_gs16_G4.pat"
           pattern_ID: 12
           duration: 10
           mode: 2
@@ -211,13 +244,16 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     # --- ORIENTATION DIAGNOSTICS ---
 
     - id: "top_on_gs2"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0013.pat"
+          pattern: "pat13_top_on_gs2_G4.pat"
           pattern_ID: 13
           duration: 10
           mode: 2
@@ -225,11 +261,14 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "left_on_gs2"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0014.pat"
+          pattern: "pat14_left_on_gs2_G4.pat"
           pattern_ID: 14
           duration: 10
           mode: 2
@@ -237,13 +276,16 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     # --- WEB ROUNDTRIP VALIDATION ---
 
     - id: "web_sq_grating_30deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0015.pat"
+          pattern: "pat15_web_sq_grating_30deg_gs16.pat"
           pattern_ID: 15
           duration: 10
           mode: 2
@@ -251,17 +293,23 @@ block:
           frame_rate: 10
           gain: 0
 
+        - type: "wait"
+          duration: 10
+
     - id: "web_sine_grating_30deg_gs16"
       commands:
         - type: "controller"
           command_name: "trialParams"
-          pattern: "pat0016.pat"
+          pattern: "pat16_web_sine_grating_30deg_gs16.pat"
           pattern_ID: 16
           duration: 10
           mode: 2
           frame_index: 1
           frame_rate: 10
           gain: 0
+
+        - type: "wait"
+          duration: 10
 
 # ============================================================================
 # INTERTRIAL - 2 second pause with arena off between conditions
