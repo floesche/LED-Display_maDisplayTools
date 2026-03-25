@@ -7,7 +7,7 @@ version: 2
 # EXPERIMENT METADATA
 # ============================================================================
 experiment_info:
-  name: "Multi-Plugin Visual Stimulus Experiment"
+  name: "Example of all possible plugins - cannot run"
   date_created: "2024-01-15"
   author: "Research Lab"
   pattern_library: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/patterns/reference/G41_2x12_cw'
@@ -43,7 +43,7 @@ plugins:
             # change between experiments. Values here that contradict rig yaml will override rig yaml.
       saveDir: 'path/to/save/videos' # Optional, default is in experiment yaml's location. 
       frame_rate: 150 # Optional, default is 100, a value outside of 10-200 will produce warning
-    
+      video_format: "avi" # Optional, default is "ufmf", only other option is "avi"
     # python: WOULD USE THIS IF PYTHON CLASS
     #   module: "pyDisplayTools.plugins.SimpleBias"
     #   class: "SimpleBias"
@@ -67,12 +67,7 @@ plugins:
   # Script Plugin - Custom preprocessing
   - name: "preprocessing"
     type: "script"
-    script_path: './user_functions/preprocess_data' #example, does not exist
-
-  # Script Plugin - Post-trial analysis
-  - name: "analysis"
-    type: "script"
-    script_path: './user_functions/analyze_trial' #example, does not exist
+    script_path: './examples/example_script_plugin' #example, does not exist
 
 # ============================================================================
 # EXPERIMENT STRUCTURE
