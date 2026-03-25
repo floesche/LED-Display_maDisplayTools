@@ -141,7 +141,6 @@ classdef CommandExecutor < handle
                                         self.logger.log('ERROR', 'trialParams (mode 2) failed - no confirmation from arena');
                                         error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 2');
                                     end
-                                    pause(dur);
                                     
 
                                 case 3
@@ -156,7 +155,7 @@ classdef CommandExecutor < handle
                                         self.logger.log('ERROR', 'trialParams (mode 3) failed - no confirmation from arena');
                                         error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 3');
                                     end
-                                    pause(dur);
+ 
 
                                 case 4
                                     required_fields = {'pattern', 'pattern_ID', 'frame_index', 'duration', 'gain'};
@@ -171,7 +170,6 @@ classdef CommandExecutor < handle
                                         self.logger.log('ERROR', 'trialParams (mode 4) failed - no confirmation from arena');
                                         error('CommandExecutor:HardwareFailure', 'Controller command failed: trialParams mode 4');
                                     end
-                                    pause(dur);
                             end
                         else
                             self.logger.log('ERROR', sprintf('start G4.1 trial failed due to unrecognized mode %d', mode));

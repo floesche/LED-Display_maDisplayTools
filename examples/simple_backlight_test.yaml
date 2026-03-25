@@ -9,7 +9,7 @@ experiment_info:
   author: "Lisa"
   pattern_library: ''
 
-rig: './configs/rigs/test_rig_1.yaml'  #REPLACE THIS WITH FULL PATH
+rig: '/Users/lisaferguson/Documents/PC/Programming/Reiser/maDisplayTools/configs/rigs/test_rig_1.yaml'  #REPLACE THIS WITH FULL PATH
 
 # ============================================================================
 # PLUGIN DEFINITIONS
