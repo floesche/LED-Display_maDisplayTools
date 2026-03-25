@@ -18,8 +18,8 @@ classdef ProtocolRunner < handle
         parser                  % ProtocolParser instance
         logger                  % ExperimentLogger instance
         trialExecutionOrder     % Array of trial metadata structs
-        outputDir               % Base output directory
-        experimentDir           % Specific experiment directory (timestamped)
+        outputDir               % output directory provided by user (defaults to yaml location)
+        experimentDir           % the directory where the yaml is saved
         verbose                 % Verbose logging flag
         dryRun                  % Dry run mode (validate only)
         maxAttempts             % Max times to attempt a command before aborting. Default 2
@@ -38,7 +38,7 @@ classdef ProtocolRunner < handle
             %   protocolFilePath - Path to YAML protocol file
             %
             % Name-Value Pairs:
-            %   'OutputDir' - Base output directory (default: './experiments')
+            %   'OutputDir' - Base output directory if different than the yaml's directory (default: '')
             %   'Verbose' - Enable verbose logging (default: true)
             %   'DryRun' - Validate without executing (default: false)
             
@@ -46,7 +46,7 @@ classdef ProtocolRunner < handle
             p = inputParser;
             addRequired(p, 'protocolFilePath', @ischar);
             addParameter(p, 'arenaIP', '', @ischar);
-            addParameter(p, 'OutputDir', './experiments', @ischar);
+            addParameter(p, 'OutputDir', '', @ischar);
             addParameter(p, 'Verbose', true, @islogical);
             addParameter(p, 'DryRun', false, @islogical);
             addParameter(p, 'maxAttempts', 2, @(x) isnumeric(x) && x >= 1);
@@ -259,8 +259,12 @@ classdef ProtocolRunner < handle
         end
         
         function getExperimentDirectory(self)
-
-            [self.experimentDir, ~] = fileparts(self.protocolFilePath);
+            
+            if ~isempty(self.outputDir)
+                self.experimentDir = self.outputDir;
+            else
+                [self.experimentDir, ~] = fileparts(self.protocolFilePath);
+            end
 
         end
         
