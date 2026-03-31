@@ -74,6 +74,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     %% Input validation
     if nargin < 3
         result.error = 'Must provide yaml_file_paths, sd_drive, and output_dir';
+        fprintf(result.error);
         return;
     end
     
@@ -87,6 +88,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
             mkdir(output_dir);
         catch ME
             result.error = sprintf('Failed to create output directory %s: %s', output_dir, ME.message);
+            fprintf(result.error);
             return;
         end
     end
@@ -98,6 +100,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
         [pattern_paths_per_yaml, yaml_files] = extract_patterns_from_yaml(yaml_file_paths);
     catch ME
         result.error = sprintf('Pattern extraction failed: %s', ME.message);
+        fprintf(result.error);
         return;
     end
     
@@ -149,7 +152,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     % Stop if any validation failed
     if validation_failed
         result.error = sprintf('Protocol validation failed with %d total error(s). See details above.', length(all_errors));
-        fprintf('\n✗ Deployment aborted due to validation errors\n\n');
+        fprintf(result.error);
         return;
     end
     
@@ -171,6 +174,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     
     if result.num_patterns == 0
         result.error = 'No patterns found in YAML file(s)';
+        fprintf(result.error);
         return;
     end
     
@@ -182,18 +186,20 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     
     try
         if isempty(staging_dir)
-            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'Format', true);
+            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'Format', false);
         else
-            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', staging_dir, 'Format', true);
+            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', staging_dir, 'Format', false);
         end
     catch ME
         result.error = sprintf('SD card deployment failed: %s', ME.message);
+        fprintf(result.error);
         return;
     end
     
     if ~sd_mapping.success
         result.error = sprintf('SD card deployment failed: %s', sd_mapping.error);
         result.sd_mapping = sd_mapping;
+        fprintf('SD card deployment failed: %s', result.sd_mapping);
         return;
     end
     
