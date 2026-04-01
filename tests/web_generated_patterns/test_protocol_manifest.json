@@ -1,6 +1,6 @@
 {
   "generator": "generate-roundtrip-protocol.js",
-  "generated_at": "2026-02-28T12:02:29.552Z",
+  "generated_at": "2026-04-01T14:05:49.032Z",
   "version": 1,
   "protocol_file": "test_protocol_v1.yaml",
   "expected": {

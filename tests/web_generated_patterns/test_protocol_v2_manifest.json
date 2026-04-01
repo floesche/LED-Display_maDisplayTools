@@ -1,0 +1,73 @@
+{
+  "generator": "generate-roundtrip-protocol.js",
+  "generated_at": "2026-04-01T14:05:49.033Z",
+  "version": 2,
+  "protocol_file": "test_protocol_v2.yaml",
+  "expected": {
+    "name": "Web Roundtrip Test Protocol V2",
+    "author": "Roundtrip Test Generator",
+    "rig_path": "../../configs/rigs/test_rig_1.yaml",
+    "num_plugins": 2,
+    "plugin_names": [
+      "backlight",
+      "camera"
+    ],
+    "plugin_classes": [
+      "LEDControllerPlugin",
+      "BiasPlugin"
+    ],
+    "repetitions": 1,
+    "randomization_enabled": false,
+    "num_conditions": 3,
+    "conditions": [
+      {
+        "id": "grating_with_backlight",
+        "num_commands": 7,
+        "has_trial_params": true,
+        "trial_params": {
+          "pattern": "web_G41_2x12_gs16_sine_grating_G4.pat",
+          "pattern_ID": 1,
+          "duration": 10,
+          "mode": 2,
+          "frame_index": 1,
+          "frame_rate": 10,
+          "gain": 0
+        }
+      },
+      {
+        "id": "grating_no_backlight",
+        "num_commands": 3,
+        "has_trial_params": true,
+        "trial_params": {
+          "pattern": "web_G4_4x12_gs16_square_grating_G4.pat",
+          "pattern_ID": 2,
+          "duration": 5,
+          "mode": 2,
+          "frame_index": 1,
+          "frame_rate": 60,
+          "gain": 0
+        }
+      },
+      {
+        "id": "closed_loop_test",
+        "num_commands": 3,
+        "has_trial_params": true,
+        "trial_params": {
+          "pattern": "web_G4_4x12_gs2_square_grating_G4.pat",
+          "pattern_ID": 3,
+          "duration": 8,
+          "mode": 4,
+          "frame_index": 1,
+          "frame_rate": 0,
+          "gain": -90
+        }
+      }
+    ],
+    "pretrial_include": true,
+    "pretrial_num_commands": 7,
+    "intertrial_include": true,
+    "intertrial_num_commands": 2,
+    "posttrial_include": true,
+    "posttrial_num_commands": 4
+  }
+}

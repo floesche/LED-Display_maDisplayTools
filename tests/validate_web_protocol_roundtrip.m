@@ -39,11 +39,7 @@ function results = validate_web_protocol_roundtrip(version)
         case 'v1'
             results = run_v1_tests(repoRoot, patsDir);
         case 'v2'
-            fprintf('V2 protocol roundtrip not yet implemented.\n');
-            fprintf('Waiting for V2 format finalization.\n');
-            results = struct('passed', true, 'num_passed', 0, ...
-                             'num_total', 0, 'details', {{}}, 'skipped', true);
-            return;
+            results = run_v2_tests(repoRoot, patsDir);
         otherwise
             error('Unknown version: %s. Use ''v1'' or ''v2''.', version);
     end
@@ -226,7 +222,285 @@ function results = run_v1_tests(repoRoot, patsDir)
     end
     mkdir(tmpDir);
     try
-        runner = ProtocolRunner(yamlFile, '0.0.0.0', ...
+        runner = ProtocolRunner(yamlFile, ...
+            'arenaIP', '0.0.0.0', ...
+            'OutputDir', tmpDir, 'Verbose', false, 'DryRun', true); %#ok<NASGU>
+        fprintf('  ✓ Construction succeeded (protocol parsed and validated)\n');
+        test_names{end+1} = testName;
+        test_passed(end+1) = true;
+        test_details{end+1} = 'Construction OK';
+    catch ME
+        fprintf('  ✗ Construction failed: %s\n', ME.message);
+        test_names{end+1} = testName;
+        test_passed(end+1) = false;
+        test_details{end+1} = ME.message;
+    end
+    if isfolder(tmpDir)
+        rmdir(tmpDir, 's');
+    end
+
+    results = package_results(test_names, test_passed, test_details);
+end
+
+function results = run_v2_tests(repoRoot, patsDir)
+    manifestFile = fullfile(patsDir, 'test_protocol_v2_manifest.json');
+    yamlFile = fullfile(patsDir, 'test_protocol_v2.yaml');
+
+    if ~exist(manifestFile, 'file')
+        error(['V2 manifest not found: %s\n' ...
+               'Run: cd webDisplayTools && node tests/generate-roundtrip-protocol.js ' ...
+               '--outdir ../maDisplayTools/tests/web_generated_patterns'], manifestFile);
+    end
+
+    if ~exist(yamlFile, 'file')
+        error('V2 protocol YAML not found: %s', yamlFile);
+    end
+
+    % Load manifest with expected values
+    manifest = jsondecode(fileread(manifestFile));
+    expected = manifest.expected;
+
+    test_names = {};
+    test_passed = [];
+    test_details = {};
+
+    % ── Test 1: ProtocolParser can parse the V2 YAML ──
+    testName = 'V2: ProtocolParser.parse()';
+    fprintf('Test: %s\n', testName);
+    try
+        parser = ProtocolParser('Verbose', false);
+        protocol = parser.parse(yamlFile);
+        fprintf('  ✓ Parsed successfully\n');
+        test_names{end+1} = testName;
+        test_passed(end+1) = true;
+        test_details{end+1} = 'Parsed OK';
+    catch ME
+        fprintf('  ✗ Parse failed: %s\n', ME.message);
+        test_names{end+1} = testName;
+        test_passed(end+1) = false;
+        test_details{end+1} = ME.message;
+        % Can't continue without protocol
+        results = package_results(test_names, test_passed, test_details);
+        return;
+    end
+
+    % ── Test 2: Version ──
+    testName = 'V2: version';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        protocol.version, 2);
+
+    % ── Test 3: Experiment info ──
+    testName = 'V2: experiment_info.name';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        protocol.experimentInfo.name, expected.name);
+
+    % ── Test 4: Rig config resolved ──
+    testName = 'V2: rigConfig exists';
+    hasRig = isfield(protocol, 'rigConfig') && ~isempty(protocol.rigConfig);
+    fprintf('Test: %s\n', testName);
+    if hasRig
+        fprintf('  ✓ Rig config resolved\n');
+        test_names{end+1} = testName;
+        test_passed(end+1) = true;
+        test_details{end+1} = 'Rig loaded';
+    else
+        fprintf('  ✗ Rig config not found in protocol struct\n');
+        test_names{end+1} = testName;
+        test_passed(end+1) = false;
+        test_details{end+1} = 'Missing rigConfig';
+    end
+
+    % ── Test 5: Arena config from rig ──
+    if hasRig && isfield(protocol, 'arenaConfig')
+        testName = 'V2: arenaConfig.generation';
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            protocol.arenaConfig.generation, 'G4.1');
+
+        testName = 'V2: arenaConfig.num_rows';
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            protocol.arenaConfig.num_rows, 2);
+
+        testName = 'V2: arenaConfig.num_cols';
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            protocol.arenaConfig.num_cols, 12);
+    end
+
+    % ── Test 6: Plugins ──
+    testName = 'V2: plugins exist';
+    hasPlugins = isfield(protocol, 'plugins') && ~isempty(protocol.plugins);
+    fprintf('Test: %s\n', testName);
+    if hasPlugins
+        if iscell(protocol.plugins)
+            numPlugins = length(protocol.plugins);
+        else
+            numPlugins = length(protocol.plugins);
+        end
+        fprintf('  ✓ %d plugin(s) found\n', numPlugins);
+        test_names{end+1} = testName;
+        test_passed(end+1) = true;
+        test_details{end+1} = sprintf('%d plugins', numPlugins);
+
+        testName = 'V2: num_plugins';
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            numPlugins, expected.num_plugins);
+
+        % Check plugin names
+        for pi = 1:numPlugins
+            if iscell(protocol.plugins)
+                pluginDef = protocol.plugins{pi};
+            else
+                pluginDef = protocol.plugins(pi);
+            end
+            testName = sprintf('V2: plugin[%d].name', pi);
+            if iscell(expected.plugin_names)
+                expName = expected.plugin_names{pi};
+            else
+                expName = expected.plugin_names(pi);
+            end
+            [test_names, test_passed, test_details] = check_field(...
+                test_names, test_passed, test_details, testName, ...
+                pluginDef.name, expName);
+        end
+    else
+        fprintf('  ✗ No plugins found\n');
+        test_names{end+1} = testName;
+        test_passed(end+1) = false;
+        test_details{end+1} = 'No plugins';
+    end
+
+    % ── Test 7: Experiment structure ──
+    testName = 'V2: repetitions';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        protocol.experimentStructure.repetitions, expected.repetitions);
+
+    % ── Test 8: Number of conditions ──
+    conditions = protocol.blockConditions;
+    numConditions = length(conditions);
+    testName = 'V2: num_conditions';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        numConditions, expected.num_conditions);
+
+    % ── Test 9: Condition details (multi-command) ──
+    expectedConds = expected.conditions;
+    for ci = 1:min(numConditions, expected.num_conditions)
+        cond = conditions(ci);
+
+        if iscell(expectedConds)
+            expCond = expectedConds{ci};
+        elseif isstruct(expectedConds)
+            expCond = expectedConds(ci);
+        end
+
+        testName = sprintf('V2: condition[%d].id', ci);
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            cond.id, expCond.id);
+
+        % Check number of commands
+        if iscell(cond.commands)
+            numCmds = length(cond.commands);
+        else
+            numCmds = length(cond.commands);
+        end
+        testName = sprintf('V2: condition[%d].num_commands', ci);
+        [test_names, test_passed, test_details] = check_field(...
+            test_names, test_passed, test_details, testName, ...
+            numCmds, expCond.num_commands);
+
+        % Check trialParams if expected
+        if expCond.has_trial_params && ~isempty(expCond.trial_params)
+            tp = expCond.trial_params;
+            % Find the trialParams command
+            tpCmd = [];
+            for ki = 1:numCmds
+                if iscell(cond.commands)
+                    cmd = cond.commands{ki};
+                else
+                    cmd = cond.commands(ki);
+                end
+                if isfield(cmd, 'command_name') && strcmp(cmd.command_name, 'trialParams')
+                    tpCmd = cmd;
+                    break;
+                end
+            end
+
+            if ~isempty(tpCmd)
+                testName = sprintf('V2: condition[%d].trialParams.duration', ci);
+                [test_names, test_passed, test_details] = check_field(...
+                    test_names, test_passed, test_details, testName, ...
+                    tpCmd.duration, tp.duration);
+
+                testName = sprintf('V2: condition[%d].trialParams.mode', ci);
+                [test_names, test_passed, test_details] = check_field(...
+                    test_names, test_passed, test_details, testName, ...
+                    tpCmd.mode, tp.mode);
+
+                testName = sprintf('V2: condition[%d].trialParams.gain', ci);
+                [test_names, test_passed, test_details] = check_field(...
+                    test_names, test_passed, test_details, testName, ...
+                    tpCmd.gain, tp.gain);
+            else
+                testName = sprintf('V2: condition[%d].trialParams found', ci);
+                fprintf('Test: %s\n', testName);
+                fprintf('  ✗ trialParams command not found\n');
+                test_names{end+1} = testName;
+                test_passed(end+1) = false;
+                test_details{end+1} = 'trialParams not found';
+            end
+        end
+    end
+
+    % ── Test 10: Phase includes ──
+    testName = 'V2: pretrial.include';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        ~isempty(protocol.pretrialCommands), expected.pretrial_include);
+
+    testName = 'V2: intertrial.include';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        ~isempty(protocol.intertrialCommands), expected.intertrial_include);
+
+    testName = 'V2: posttrial.include';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        ~isempty(protocol.posttrialCommands), expected.posttrial_include);
+
+    % ── Test 11: Phase command counts ──
+    testName = 'V2: pretrial.num_commands';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        length(protocol.pretrialCommands), expected.pretrial_num_commands);
+
+    testName = 'V2: intertrial.num_commands';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        length(protocol.intertrialCommands), expected.intertrial_num_commands);
+
+    testName = 'V2: posttrial.num_commands';
+    [test_names, test_passed, test_details] = check_field(...
+        test_names, test_passed, test_details, testName, ...
+        length(protocol.posttrialCommands), expected.posttrial_num_commands);
+
+    % ── Test 12: ProtocolRunner construction (dry run) ──
+    testName = 'V2: ProtocolRunner construction';
+    fprintf('Test: %s\n', testName);
+    tmpDir = fullfile(tempdir, 'web_protocol_v2_roundtrip_test');
+    if isfolder(tmpDir)
+        rmdir(tmpDir, 's');
+    end
+    mkdir(tmpDir);
+    try
+        runner = ProtocolRunner(yamlFile, ...
+            'arenaIP', '0.0.0.0', ...
             'OutputDir', tmpDir, 'Verbose', false, 'DryRun', true); %#ok<NASGU>
         fprintf('  ✓ Construction succeeded (protocol parsed and validated)\n');
         test_names{end+1} = testName;
