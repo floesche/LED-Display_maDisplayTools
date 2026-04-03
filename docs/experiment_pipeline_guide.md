@@ -1,8 +1,8 @@
 # G4.1 Experiment Pipeline Guide
 
-**Last Updated:** 2026-01-21  
+**Last Updated:** 2026-04-03  
 
-**Status:** Implemented and initial testing (real life testing needed)
+**Status:** Implemented and tested on rig
 
 **Dependencies:** Please make sure you have the matlab add-on called yaml by Martin Koch installed. It can be found under Add-ons in the matlab toolbar.
 
@@ -18,165 +18,150 @@ This document describes the complete pipeline for creating and running G4.1 LED 
 
 ### 1. Create YAML Protocol File
 
-**Status:** Manual process
+**Status:** Manual process. Web tools in production.
 
 #### Creating Your Protocol
 
 1. **Start with a template or example**
-   - Example location: `maDisplayTools/examples/SimpleYamlExperimentDemo/`
-   - Contains tested, working protocol
+   - Example location: `maDisplayTools/examples/yamls/full_experiment_test.yaml`
+   - Contains a tested, working protocol with camera and backlight plugins
 
 2. **Organize your files**
-   - Create a dedicated folder for your experiment
+   - Create a dedicated folder for your experiment yamls
    - Save the YAML file in this folder
-   - This folder will serve as your `OutputDir` during experiment execution
+   - Create a dedicated experiment folder to hold the updated yaml and results of this experiment.
 
 3. **Define your experiment**
-   - Configure arena settings (`arena_info`)
-   - Define experimental conditions (`block`)
-   - Add optional pretrial, intertrial, posttrial phases
-   - Include any required plugins (only script plugins supported so far, more are coming)
+   - Reference your rig YAML in the `rig:` field
+   - Define optional plugins (camera, backlight, etc.)
+   - Define experimental conditions in `block`
+   - Add optional pretrial, intertrial, and posttrial phases
 
-#### Recent YAML Format Updates
-
-##### `pattern_library` Field (NEW)
-
-**Location:** `experiment_info` section
-
-**Purpose:** Central location for pattern files
-
-**Usage:**
-```yaml
-experiment_info:
-  name: "My Experiment"
-  date_created: "2026-01-21"
-  author: "Your Name"
-  pattern_library: "/path/to/patterns/"  # ← New field
-```
-
-**Benefits:**
-- If all patterns are in one location, specify it once in `pattern_library`
-- Reference patterns by filename only throughout the rest of the YAML
-- Individual patterns can still use absolute paths to override the library location
-- So it is still useful when most patterns share a location, but one or two are elsewhere
-
-**Example:**
-```yaml
-experiment_info:
-  pattern_library: "/Users/lisa/patterns/"
-
-# Later in the file:
-commands:
-  - type: "controller"
-    command_name: "startG41Trial"
-    pattern: "pat0001_vertical_bars.pat"  # Will look in pattern_library
-    
-  - type: "controller"
-    command_name: "startG41Trial"
-    pattern: "/special/location/pat0099_test.pat"  # Absolute path overrides
-```
-
-##### `pattern_ID` Field (NEW)
-
-**Location:** All controller commands that use patterns
-
-**Purpose:** Explicit pattern ID for SD card reference
-
-**Why this changed:**
-- YAML files are now reusable for setting up multiple SD cards
-- Pattern filenames in YAML no longer match SD card IDs
-
-**How it works:**
-```yaml
-- type: "controller"
-  command_name: "startG41Trial"
-  pattern: "/path/to/pat0123_my_pattern.pat"  # Original filename
-  pattern_ID: 5  # ← Actual ID on SD card (auto-updated by deploy script)
-  duration: 2
-  mode: 2
-```
-
-**Important:**
-- You don't need to manually set `pattern_ID` values, you can leave them empty. However, it will not hurt anything if you put in initial values when creating your yaml. 
-- The `deploy_experiments_to_sd` script automatically updates these fields
-- Each time you redeploy to a new SD card, IDs are recalculated and updated
-- The pattern filename remains unchanged for your reference
+   For full details on the YAML format, including the arena and rig YAML files, see `yaml_protocol_documentation.md`.
 
 ---
 
 ### 2. Deploy Experiments to SD Card
 
 **Script:** `deploy_experiments_to_sd.m`  
-**Location:** `maDisplayTools/`
+**Location:** `maDisplayTools/utils/`
+
+#### SD Card Preparation
+
+Before running the script, ensure your SD card is labeled **`PATSD`**. Lab SD cards should already have this label. You can verify and set the label using your operating system's disk utility.
 
 #### Function Call
 
 ```matlab
-deploy_experiments_to_sd(yamlPaths, sdCardPath)
+result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir)
+result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir, staging_dir)
 ```
 
 **Arguments:**
-- `yamlPaths` - Cell array of paths to YAML protocol files
-  - Example: `{'/path/to/exp1.yaml', '/path/to/exp2.yaml'}`
-- `sdCardPath` - Path to mounted SD card
-  - Example (Windows): `'E'`
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `yaml_file_paths` | Yes | String, char, or cell array of YAML file path(s) | `{'exp1.yaml', 'exp2.yaml'}` |
+| `sd_drive` | Yes | Drive letter for SD card | `'E'` |
+| `output_dir` | Yes | Directory where updated YAML file and results will be saved | `'./experiment_folder'` |
+| `staging_dir` | No | Optional custom staging directory path | `'./staging'` |
+
+**Return Value:**
+
+`result` is a struct with fields:
+- `result.success` — `true` if the entire process succeeded
+- `result.error` — error message if failed, empty string if success
+- `result.yaml_files` — cell array of original YAML files processed
+- `result.num_patterns` — total unique patterns deployed
+- `result.sd_mapping` — mapping struct from `prepare_sd_card()`
+- `result.output_yaml_files` — cell array of paths to the new YAML files created
 
 #### What This Script Does
 
 ##### 1. **Pattern Extraction**
-- Scans all provided YAML files
-- Extracts unique pattern file paths
-- Uses `pattern_library` field to resolve relative paths
-- Validates that all pattern files exist
+- Scans all provided YAML files for pattern references
+- Uses `pattern_library` field to resolve relative pattern filenames to full paths
 
 ##### 2. **Validation**
-- ✓ YAML files exist and are readable
-- ✓ Pattern files exist and are accessible
-- ✓ Total patterns fit on SD card (checks available space)
-- ✓ SD card is mounted and writable
-- ✓ File operations permissions are correct
+- Runs `validate_protocol_for_sd_card()` on each YAML before touching the SD card
+- ✓ YAML structure and version (must be version 2)
+- ✓ Rig configuration resolves and loads cleanly
+- ✓ Arena configuration is valid
+- ✓ Pattern files exist and match arena dimensions
+- ✓ All commands have required fields
+- If any YAML fails validation, the script stops before writing anything to the SD card
 
 ##### 3. **Pattern Processing**
-- Removes duplicate patterns (same file referenced multiple times)
-- Sorts patterns in order of first appearance across YAML files
+- Removes duplicate patterns (same file referenced in multiple YAMLs)
+- Preserves order of first appearance across all YAML files
 
 ##### 4. **SD Card Setup** (via `prepare_sd_card.m`)
 - Copies patterns to SD card
-- Renames patterns to standardized format: `pat0001.pat`, `pat0002.pat`, etc.
-- Creates/updates `manifest.txt` with pattern metadata
-- Archives any previous manifest
-- Generates pattern mapping: original filename → new SD card filename
+- Renames patterns to standardized format: `PAT0001.pat`, `PAT0002.pat`, etc.
+- Creates/updates manifest on the SD card
 
-##### 5. **YAML Updates**
-- Adds `pattern_mapping` section to bottom of each YAML file
-- Updates all `pattern_ID` fields to match SD card IDs
-- Preserves original pattern paths for reference
-- YAML files are now ready for experiment execution
+##### 5. **New YAML Files Created**
+- **Originals are not modified**
+- A new YAML file is created for each input YAML in `output_dir`
+- New filename format: `original_name_YYYYMMDD_HHMMSS.yaml`
+- New files contain:
+  - Updated `pattern_ID` fields matching SD card numbering
+  - An added `sd_card_mapping` section recording the pattern mapping for this SD card
 
-#### Example YAML After Deployment
+**These new YAML files are the ones you use to run experiments** (see Step 3).
+
+#### Example
+
+```matlab
+% Single experiment
+result = deploy_experiments_to_sd( ...
+    'my_experiment.yaml', ...
+    'E', ...
+    './experiment_folder');
+
+if ~result.success
+    fprintf('Error: %s\n', result.error);
+else
+    fprintf('Ready to run: %s\n', result.output_yaml_files{1});
+end
+
+% Multiple experiments
+yamls = {'exp1.yaml', 'exp2.yaml', 'exp3.yaml'};
+result = deploy_experiments_to_sd(yamls, 'E', './experiment_folder');
+```
+
+#### Updates to timestamped YAML produced by deployment step
 
 ```yaml
-# ... rest of protocol ...
 
-commands:
-  - type: "controller"
-    command_name: "startG41Trial"
-    pattern: "/original/path/pat0003_vertical_bars.pat"
-    pattern_ID: 1  # ← Updated by deploy script
-    
+# All pattern IDs updated to match where the pattern is found on the SD card
+# protocol otherwise unchanged
+
 # New section added automatically:
-pattern_mapping:
-  description: "Mapping of original pattern paths to SD card filenames"
-  timestamp: "2026-01-21T14:30:00"
+sd_card_mapping:
+  timestamp: '2026-01-21T14:30:00'
+  sd_drive: E
   mappings:
-    - original: "/original/path/pat0123_vertical_bars.pat"
-      sd_card: "pat0001_vertical_bars.pat"
-      pattern_id: 1
+    - original: /original/path/pat0123_vertical_bars.pat
+      sd_name: PAT0001.pat
+    - original: /original/path/pat0456_checkerboard.pat
+      sd_name: PAT0002.pat
 ```
 
 ---
 
-### 3. Run Experiment
+### 3. Eject and Insert SD Card
+
+After `deploy_experiments_to_sd` completes:
+
+1. Safely eject the SD card from your computer
+2. Insert it into the Teensy microcontroller attached to the arena
+
+The SD card must be inserted before running `run_protocol`.
+
+---
+
+### 4. Run Experiment
 
 **Script:** `run_protocol.m`  
 **Location:** `maDisplayTools/experimentExecution/`
@@ -184,56 +169,62 @@ pattern_mapping:
 #### Prerequisites
 
 - ✓ SD card prepared with patterns (Step 2 complete)
-- ✓ YAML file updated with `pattern_ID` values
+- ✓ Updated YAML file with `pattern_ID` values (output from Step 2)
 - ✓ SD card inserted into Teensy microcontroller
-- ✓ Arena hardware powered on and connected
+- ✓ Arena and any plugin hardware powered on and connected
 
 #### Function Call
 
 ```matlab
-run_protocol(protocolFilePath, arenaIP, Name, Value, ...)
+run_protocol(protocolFilePath)
+run_protocol(protocolFilePath, Name, Value, ...)
 ```
+
+**Use the YAML file output by `deploy_experiments_to_sd` (the timestamped copy in `output_dir`), not your original YAML.**
 
 #### Required Arguments
 
 | Argument | Type | Description | Example |
 |----------|------|-------------|---------|
-| `protocolFilePath` | string/char | Path to YAML protocol file | `'./experiments/exp001/protocol.yaml'` |
-| `arenaIP` | string/char | IP address of arena controller | `'192.168.1.10'` |
+| `protocolFilePath` | string/char | Path to the updated YAML protocol file from Step 2 | `'./experiment_folder/my_experiment_20260121_143000.yaml'` |
 
 #### Optional Name-Value Arguments
 
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
-| `'OutputDir'` | string/char | yamlFileLocation | Base directory for experiment outputs (logs, data) |
+| `'arenaIP'` | string/char | from rig YAML | Override the controller IP address from the rig config |
+| `'OutputDir'` | string/char | YAML file's folder | Directory for experiment outputs (logs, metadata) |
 | `'Verbose'` | logical | `true` | Enable detailed logging to console |
 | `'DryRun'` | logical | `false` | Validate protocol without executing (testing mode) |
 
 #### Usage Examples
 
-**Basic execution:**
+**Basic execution (IP comes from rig YAML):**
 ```matlab
-run_protocol('protocol.yaml', '192.168.1.10');
+run_protocol('./experiment_folder/my_experiment_20260121_143000.yaml');
+```
+
+**Override arena IP:**
+```matlab
+run_protocol('./experiment_folder/my_experiment_20260121_143000.yaml', ...
+             'arenaIP', '10.102.40.61');
 ```
 
 **With custom output directory:**
 ```matlab
-run_protocol('protocol.yaml', '192.168.1.10', 'OutputDir', './my_data');
-```
-
-**Quiet mode (minimal console output):**
-```matlab
-run_protocol('protocol.yaml', '192.168.1.10', 'Verbose', false);
+run_protocol('./experiment_folder/my_experiment_20260121_143000.yaml', ...
+             'OutputDir', './data/run_001');
 ```
 
 **Validation only (no hardware commands):**
 ```matlab
-run_protocol('protocol.yaml', '192.168.1.10', 'DryRun', true);
+run_protocol('./experiment_folder/my_experiment_20260121_143000.yaml', ...
+             'DryRun', true);
 ```
 
 **Full customization:**
 ```matlab
-run_protocol('protocol.yaml', '192.168.1.10', ...
+run_protocol('./experiment_folder/my_experiment_20260121_143000.yaml', ...
              'OutputDir', './experiments/exp_20260121', ...
              'Verbose', true, ...
              'DryRun', false);
@@ -244,7 +235,7 @@ run_protocol('protocol.yaml', '192.168.1.10', ...
 1. **Initialization**
    - Parses and validates YAML protocol
    - Initializes logging system
-   - Connects to arena hardware
+   - Connects to arena hardware (using IP from rig YAML, or `arenaIP` override)
    - Initializes any defined plugins
 
 2. **Trial Generation**
@@ -253,18 +244,17 @@ run_protocol('protocol.yaml', '192.168.1.10', ...
    - Creates trial metadata
 
 3. **Execution Phases**
-   - **Pretrial:** Setup and initialization commands (if defined)
+   - **Pretrial:** Setup and initialization commands (if enabled)
    - **Main Loop:** 
      - Executes each trial condition
-     - Runs intertrial commands between trials (if defined)
+     - Runs intertrial commands between trials (if enabled)
      - Logs all commands and timing
-   - **Posttrial:** Cleanup and final commands (if defined)
+   - **Posttrial:** Cleanup and final commands (if enabled)
 
 4. **Finalization**
-   - Saves trial order and metadata in provided output directory
+   - Saves trial order and metadata to output directory
    - Generates experiment summary
-   - Closes hardware connections
-   - Closes all plugin connections
+   - Closes hardware connections and plugin connections
    - Finalizes log file
 
 ---
@@ -277,7 +267,7 @@ run_protocol('protocol.yaml', '192.168.1.10', ...
 
 ```yaml
 # my_experiment.yaml
-version: 1
+version: 2
 
 experiment_info:
   name: "Vertical Bar Motion"
@@ -285,10 +275,18 @@ experiment_info:
   date_created: "2026-01-21"
   pattern_library: "/Users/lisa/patterns/"
 
-arena_info:
-  num_rows: 4
-  num_cols: 12
-  generation: "G4.1"
+rig: "./configs/rigs/my_rig.yaml"
+
+plugins:
+  - name: "camera" #Must match name in rig yaml
+    type: "class"
+    matlab:
+      class: "BiasPlugin"
+
+  - name: "backlight" #Must match name in rig yaml
+    type: "class"
+    matlab:
+      class: "LEDControllerPlugin"
 
 experiment_structure:
   repetitions: 3
@@ -300,8 +298,11 @@ block:
   conditions:
     - id: "left_motion"
       commands:
+        - type: "plugin"
+          plugin_name: "camera"
+          command_name: "getTimestamp"
         - type: "controller"
-          command_name: "startG41Trial"
+          command_name: "trialParams"
           pattern: "vertical_bars.pat"  # Relative to pattern_library
           pattern_ID: 0  # Will be updated by deploy script
           duration: 5
@@ -309,61 +310,62 @@ block:
           frame_index: 1
           frame_rate: 60
           gain: 0
+        - type: "wait"
+          duration: 5
 ```
 
 #### 2. Deploy to SD Card
 
 ```matlab
 % Define your protocol files
-protocols = {
-    '/Users/lisa/experiments/exp001/my_experiment.yaml',
-    '/Users/lisa/experiments/exp002/another_experiment.yaml'
-};
+protocols = {'/Users/lisa/experiments/exp001/my_experiment.yaml'};
 
-% Define SD card drive letter
+% Define SD card drive letter and where to save updated YAMLs
 sd_card = 'E';
+output_dir = '/Users/lisa/experiments/exp001/sd_ready';
 
 % Deploy
-deploy_experiments_to_sd(protocols, sd_card);
+result = deploy_experiments_to_sd(protocols, sd_card, output_dir);
+
+if result.success
+    fprintf('Ready to run: %s\n', result.output_yaml_files{1});
+end
 ```
 
 **Console Output:**
 ```
-=== Deploying Experiments to SD Card ===
-Found 2 protocol files
-Extracting patterns...
-  Found 5 unique patterns
-Validating...
-  ✓ All protocols valid
-  ✓ All patterns exist
-  ✓ SD card accessible
-  ✓ Sufficient space available
-Preparing SD card...
-  Copying patterns...
-  ✓ pat0001_vertical_bars.pat
-  ✓ pat0002_horizontal_bars.pat
+=== Extracting patterns from YAML files ===
+  my_experiment.yaml: 1 patterns
+
+=== Validating YAML protocols ===
+  ✓ my_experiment validated
+
+=== Preparing patterns for SD card ===
+Total patterns: 1 (from all YAMLs)
+Unique patterns to deploy: 1
+
+=== Deploying to SD card ===
   ...
-Updating protocols...
-  ✓ Updated my_experiment.yaml
-  ✓ Updated another_experiment.yaml
-=== Deployment Complete ===
+
+=== Creating updated YAML files ===
+  Created: /Users/lisa/experiments/exp001/sd_ready/my_experiment_20260121_143000.yaml
+  Added 1 pattern mappings
+  Updated 1 pattern_ID fields
+
+=== Deployment complete ===
+
+Ready to run: /Users/lisa/experiments/exp001/sd_ready/my_experiment_20260121_143000.yaml
 ```
 
-#### 3. Run Your Experiment
+#### 3. Eject SD Card and Insert into Teensy
+
+Safely eject from your computer, then insert into the Teensy attached to the arena.
+
+#### 4. Run Your Experiment
 
 ```matlab
-% Basic execution
-run_protocol('/Users/lisa/experiments/exp001/my_experiment.yaml', ...
-             '192.168.1.10');
-```
-
-**Or with full options:**
-```matlab
-run_protocol('/Users/lisa/experiments/exp001/my_experiment.yaml', ...
-             '192.168.1.10', ...
-             'OutputDir', '/Users/lisa/data', ...
-             'Verbose', true, ...
-             'DryRun', false);
+% Use the timestamped YAML from the deploy step, not the original
+run_protocol('/Users/lisa/experiments/exp001/sd_ready/my_experiment_20260121_143000.yaml');
 ```
 
 ---
@@ -376,49 +378,58 @@ run_protocol('/Users/lisa/experiments/exp001/my_experiment.yaml', ...
 **Problem:** Deploy script can't find pattern files  
 **Solution:** 
 - Check `pattern_library` path is correct
-- Verify pattern filenames are exact (case-sensitive)
+- Verify pattern filenames are exact (case-sensitive on Mac/Linux)
 - Use absolute paths if patterns are in multiple locations
+
+#### Validation Fails Before SD Card Write
+**Problem:** `deploy_experiments_to_sd` reports validation errors and stops  
+**Solution:**
+- Read the error messages — they identify exactly which field or file is the problem
+- Common causes: missing required fields in YAML, pattern files that don't exist, rig YAML path incorrect, protocol version not set to 2
+- Fix the original YAML and re-run deploy
 
 #### SD Card Not Accessible
 **Problem:** Script can't write to SD card  
 **Solution:**
 - Verify SD card is mounted
-- Check path matches your OS (Mac: `/Volumes/...`, Windows: `E:`, `F:`, etc.)
+- Check drive letter is correct (Windows: `'E'`, `'F'`, etc.)
 - Ensure SD card is not write-protected
-- Check sufficient space available
+- Check sufficient space is available
+- Verify SD card label is `PATSD`
 
 #### Pattern ID Mismatch
 **Problem:** Hardware can't find pattern  
 **Solution:**
-- Verify SD card was properly prepared with `deploy_experiments_to_sd`
-- Check `pattern_ID` values were updated in YAML
+- Verify you are running the timestamped YAML output by `deploy_experiments_to_sd`, not your original YAML
+- Re-run `deploy_experiments_to_sd` if the SD card was re-prepared since the last deploy
 - Ensure SD card is inserted in Teensy before running experiment
 
 #### Connection Failed
 **Problem:** Can't connect to arena hardware  
 **Solution:**
-- Verify IP address is correct
-- Check arena is powered on
-- Ensure network connection
-- Try pinging the IP address: `ping 192.168.1.10`
+- Verify IP address in your rig YAML is correct
+- Check arena is powered on and network cable is connected
+- Try pinging the IP: `ping 10.102.40.61`
+- Use the `'arenaIP'` override in `run_protocol` for one-off testing with a different IP
 
 ---
 
 ## Best Practices
 
 ### YAML Management
-- ✓ Keep YAML files in dedicated experiment folders
+- ✓ Keep original YAML files in dedicated yamls folder
 - ✓ Use descriptive experiment names
 - ✓ Use `pattern_library` for centralized pattern management
-- ✓ Don't manually edit `pattern_ID` values or `pattern_mapping` sections
+- ✓ Don't manually edit `pattern_ID` values or `sd_card_mapping` sections — these are managed by the deploy script
+- ✓ Keep your original experiment YAML as the source of truth; the timestamped copy is for a specific SD card
 
 ### Experiment Execution
-- ✓ Run `DryRun` mode first to validate protocol
+- ✓ Run `DryRun` mode first to validate protocol before committing to hardware
 - ✓ Use descriptive `OutputDir` paths
 - ✓ Keep `Verbose` enabled during testing
 - ✓ Check logs immediately after experiments
 
-**Document Version:** 1.0  
-**Last Tested:** 2026-01-21  
+**Document Version:** 2.0  
+**Last Tested:** 2026-04-03 
 **MATLAB Version:** R2019-2020  
 **Compatible Systems:** G4.1 LED Arenas
