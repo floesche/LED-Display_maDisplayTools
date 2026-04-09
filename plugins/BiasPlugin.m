@@ -446,7 +446,8 @@ classdef BiasPlugin < handle
         function result = cmdConnect(self, params)
             % Connect to BIAS
             %
-            % Required params:
+            % params - required only if they are not already present in the
+            % rig yaml.
             %   ip - IP address (string)
             %   port - Port number (integer)
             
@@ -483,11 +484,22 @@ classdef BiasPlugin < handle
             pause(2);
             
             % Initialize camera format using the configured video format
-            movieFormat = self.videoFormat; 
-            self.biasControl.initializeCamera(self.frameRate, movieFormat);
+            try
+                movieFormat = self.videoFormat; 
+                self.biasControl.initializeCamera(self.frameRate, movieFormat);
             
-            self.logger.log('INFO', sprintf('[%s] Camera initialized with format: %s', ...
-                self.name, movieFormat));
+                self.logger.log('INFO', sprintf('[%s] Camera initialized with format: %s', ...
+                    self.name, movieFormat));
+            catch ME
+                self.isConnected = false;
+                self.biasControl = [];
+                self.logger.log('ERROR', sprintf('[%s] Camera initialization failed: %s', ...
+                    self.name, ME.message));
+                error('BiasPlugin:InitializationFailed', ...
+                      '[%s] Connected to BIAS but camera initialization failed: %s', ...
+                       self.name, ME.message);
+            end
+
             
             self.logger.log('INFO', sprintf('[%s] Connected to BIAS', self.name));
             
@@ -497,7 +509,8 @@ classdef BiasPlugin < handle
         function result = cmdLoadConfiguration(self, params)
             % Load BIAS configuration from JSON file
             %
-            % Required params:
+            % params - required only if not already present in the rig
+            % yaml.
             %   config_path - Path to JSON config file (string)
             
             self.assertConnected();
@@ -726,6 +739,7 @@ classdef BiasPlugin < handle
             
             if ~isfield(params, 'filename')
                 filename = '';
+                params.filename = filename;
             else
                 filename = params.filename;
             end
@@ -789,7 +803,9 @@ classdef BiasPlugin < handle
             % Get config filename (use default if not provided)
             if isfield(params, 'config_file')
                 configFile = params.config_file;
-            else
+            elseif isfield(self.config, 'config_file')
+                configFile = self.config.config_file;
+            else               
                 configFile = 'bias_config.json';
             end
             

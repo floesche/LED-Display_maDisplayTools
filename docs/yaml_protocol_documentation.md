@@ -266,18 +266,18 @@ Hardware configuration (ip, port, config_path, bias_executable) is defined in th
 
 **BiasPlugin High-Level Commands** (Recommended):
 - `startPreview` - Start camera preview without recording
-- `startRecording` - Start recording (params: `filename`)
+- `startRecording` - Start recording (params: `filename`, optional)
 - `stopRecording` - Stop recording, keep camera running
 - `stopCapture` - Stop video capture completely
-- `saveConfig` - Save config (params: `config_file`, optional)
+- `saveConfig` - Save config (params: `config_file`, optional if present in rig file)
 - `getTimestamp` - Get timestamp and frame count (logged automatically)
 
 **BiasPlugin Low-Level Commands** (Advanced):
-- `connect` - Initialize connection (params: `ip`, `port`)
-- `loadConfiguration` - Load config file (params: `config_path`)
+- `connect` - Initialize connection (params: `ip`, `port`, optional if they're already provided in rig file)
+- `loadConfiguration` - Load config file (params: `config_path`, optional if it's already provided in rig file)
 - `enableLogging` - Enable BIAS logging (recording to file)
 - `disableLogging` - Disable BIAS logging
-- `setVideoFile` - Set output video filename (params: `filename`)
+- `setVideoFile` - Set output video filename (params: `filename`, optional)
 - `startCapture` - Start video capture
 
 **Usage Example (High-Level):**
