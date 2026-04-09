@@ -450,14 +450,26 @@ classdef BiasPlugin < handle
             %   ip - IP address (string)
             %   port - Port number (integer)
             
-            if ~isfield(params, 'ip') || ~isfield(params, 'port')
+            if isfield(params, 'ip')
+                ip = params.ip;
+            elseif isfield(self.config, 'ip')
+                ip = self.config.ip;
+            else
                 error('BiasPlugin:MissingParams', ...
-                      '[%s] connect command requires ip and port parameters', ...
+                      '[%s] connect requires ip — not provided in command params or rig config', ...
                       self.name);
             end
-            
-            ip = params.ip;
-            port = params.port;
+
+                % Resolve port: prefer command params, fall back to rig config
+            if isfield(params, 'port')
+                port = params.port;
+            elseif isfield(self.config, 'port')
+                port = self.config.port;
+            else
+                error('BiasPlugin:MissingParams', ...
+                      '[%s] connect requires port — not provided in command params or rig config', ...
+                      self.name);
+            end
             
             self.logger.log('INFO', sprintf('[%s] Connecting to BIAS at %s:%d', ...
                 self.name, ip, port));
@@ -490,13 +502,16 @@ classdef BiasPlugin < handle
             
             self.assertConnected();
             
-            if ~isfield(params, 'config_path')
+            if isfield(params, 'config_path')
+                configPath = params.config_path;
+            elseif isfield(self.config, 'config_path')
+                configPath = self.config.config_path;
+            else
                 error('BiasPlugin:MissingParams', ...
-                      '[%s] loadConfiguration requires config_path parameter', ...
+                      '[%s] loadConfiguration requires config_path parameter - not found in rig or provide parameters.', ...
                       self.name);
             end
             
-            configPath = params.config_path;
             
             if ~exist(configPath, 'file')
                 error('BiasPlugin:FileNotFound', ...
@@ -568,11 +583,11 @@ classdef BiasPlugin < handle
             self.assertConnected();
             
             if ~isfield(params, 'filename')
-                error('BiasPlugin:MissingParams', ...
-                      '[%s] setVideoFile requires filename parameter', self.name);
+                filename = '';
+            else
+                filename = params.filename;
             end
-            
-            filename = params.filename;
+           
             
             % Determine full path
             if self.isAbsolutePath(filename)
@@ -710,13 +725,12 @@ classdef BiasPlugin < handle
             self.assertConnected();
             
             if ~isfield(params, 'filename')
-                error('BiasPlugin:MissingParams', ...
-                      '[%s] startRecording requires filename parameter', ...
-                      self.name);
+                filename = '';
+            else
+                filename = params.filename;
             end
             
             % Check if experiment folder is set (unless using absolute path)
-            filename = params.filename;
             if ~self.isAbsolutePath(filename) && isempty(self.saveDir)
                 self.logger.log('WARNING', sprintf('[%s] Experiment folder not set, using relative path', ...
                     self.name));
