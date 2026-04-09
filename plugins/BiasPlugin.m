@@ -29,7 +29,7 @@ classdef BiasPlugin < handle
     %         command_name: "startPreview"
     %
     %   - startRecording: Start video capture with recording to file
-    %     Params: filename (string) - video filename
+    %     Params: filename (optional, string) - video filename
     %     Example:
     %       - type: "plugin"
     %         plugin_name: "bias_camera"
@@ -70,7 +70,8 @@ classdef BiasPlugin < handle
     % === LOW-LEVEL COMMANDS (Advanced users) ===
     %
     %   - connect: Initialize BiasControl connection
-    %     Params: ip (string), port (integer)
+    %     Params: ip (string), port (integer) (only required if not present
+    %     in the rig yaml file)
     %     Example:
     %       - type: "plugin"
     %         plugin_name: "bias_camera"
@@ -80,7 +81,8 @@ classdef BiasPlugin < handle
     %           port: 5010
     %
     %   - loadConfiguration: Load BIAS configuration from JSON file
-    %     Params: config_path (string)
+    %     Params: config_path (string) (only required if not already
+    %     present in the rig yaml file)
     %     Example:
     %       - type: "plugin"
     %         plugin_name: "bias_camera"
@@ -103,7 +105,7 @@ classdef BiasPlugin < handle
     %         command_name: "disableLogging"
     %
     %   - setVideoFile: Set output video filename
-    %     Params: filename (string)
+    %     Params: filename (string) (optional)
     %     Note: Can use full path or relative filename
     %     Example:
     %       - type: "plugin"
@@ -461,7 +463,7 @@ classdef BiasPlugin < handle
                       self.name);
             end
 
-                % Resolve port: prefer command params, fall back to rig config
+            % Resolve port: prefer command params, fall back to rig config
             if isfield(params, 'port')
                 port = params.port;
             elseif isfield(self.config, 'port')
@@ -577,7 +579,7 @@ classdef BiasPlugin < handle
         function result = cmdSetVideoFile(self, params)
             % Set output video filename
             %
-            % Required params:
+            % Optional params:
             %   filename - Video filename (string)
             %
             % Notes:
@@ -727,7 +729,7 @@ classdef BiasPlugin < handle
         function result = cmdStartRecording(self, params)
             % Start video capture with recording to file
             %
-            % Required params:
+            % Optional params:
             %   filename - Video filename (string)
             %
             % Based on FlyBowl 'start' case:
