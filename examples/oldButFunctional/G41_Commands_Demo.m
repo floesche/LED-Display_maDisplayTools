@@ -119,7 +119,7 @@ response = pnet(panelsController.tcpConn, 'read', remainingBytes, 'uint8');
 % Combine: [lengthByte, response]
 fullResponse = [lengthByte; response(:)];
 
-% Replace lines 122-132 of G41_Commands_Demo.m:
+% Skip 3-byte header (length, command_echo, status); payload is ASCII string.
 ipAddress = char(reshape(fullResponse(4:end), 1, []));
 disp(['IP address: ' ipAddress]);
 
