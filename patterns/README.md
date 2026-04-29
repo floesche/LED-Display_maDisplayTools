@@ -1,3 +1,10 @@
+---
+title: Patterns Directory
+parent: MATLAB Tools
+grand_parent: Generation 6
+nav_order: 70
+---
+
 # Patterns Directory
 
 Generated .pat files are stored here. Only curated reference patterns are tracked in git.
