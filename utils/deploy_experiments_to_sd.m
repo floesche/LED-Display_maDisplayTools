@@ -187,10 +187,10 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     try
         if isempty(staging_dir)
             sd_mapping = prepare_sd_card(pattern_paths, sd_drive, ...
-                'Format', false, 'LogDir', output_dir);
+                'Format', false, 'StagingDir', output_dir);
         else
             sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', ...
-                staging_dir, 'Format', false, 'LogDir', output_dir);
+                staging_dir, 'Format', false);
         end
     catch ME
         result.error = sprintf('SD card deployment failed: %s', ME.message);
