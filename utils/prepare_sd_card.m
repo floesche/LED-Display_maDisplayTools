@@ -61,7 +61,6 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         options.Format (1,1) logical = false
         options.StagingDir char = ''
         options.ValidateDriveName (1,1) logical = true
-        options.LogDir char = ''
     end
 
     %% Initialize mapping struct
@@ -239,13 +238,11 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         log_filename = sprintf('MANIFEST_%s.txt', timestamp_filename);
         log_path = fullfile(logs_dir, log_filename);
         copyfile(txt_path, log_path);
-        if ~isempty(options.LogDir)        
-            copyfile(txt_path, fullfile(options.LogDir, log_filename));
-        end
+        copyfile(txt_path, fullfile(staging_dir, log_filename));
         mapping.log_file = log_path;
         fprintf('Saved local log: %s\n', log_path);
     catch ME
-        warning('Failed to save local log: %s', ME.message);
+        warning('prepare_sd_card:logSaveFailed','Failed to save local log: %s', ME.message);
     end
     
     %% Determine target directory on SD card
@@ -317,6 +314,23 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         mapping.error = sprintf('Verification failed: expected %d patterns, found %d on SD card', ...
             num_patterns, verify_count);
         return;
+    end
+
+    %% Clean up staging directory (leave only named manifest)
+    try
+        % Remove pattern copies
+        if isfolder(fullfile(staging_dir, 'patterns'))
+            rmdir(fullfile(staging_dir, 'patterns'), 's');
+        end
+        % Remove unnamed manifest files
+        if isfile(fullfile(staging_dir, 'MANIFEST.bin'))
+            delete(fullfile(staging_dir, 'MANIFEST.bin'));
+        end
+        if isfile(fullfile(staging_dir, 'MANIFEST.txt'))
+            delete(fullfile(staging_dir, 'MANIFEST.txt'));
+        end
+    catch ME
+        warning('prepare_sd_card:cleanupFailed', 'Could not clean staging directory: %s', ME.message);
     end
     
     %% Summary
