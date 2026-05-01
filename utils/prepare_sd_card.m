@@ -224,18 +224,14 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         return;
     end
     fprintf('Created MANIFEST.txt\n');
-    
-    %% Save local log copy
+
+   %% Save local log copy
     try
-        if ~isempty(options.LogDir)
-            logs_dir = options.LogDir;
-        else
-            this_file = mfilename('fullpath');
-            [this_dir, ~, ~] = fileparts(this_file);
-            repo_root = fileparts(this_dir);  % Go up from utils/
-            logs_dir = fullfile(repo_root, 'logs');
-        end
-             
+        this_file = mfilename('fullpath');
+        [this_dir, ~, ~] = fileparts(this_file);
+        repo_root = fileparts(this_dir);  % Go up from utils/
+        logs_dir = fullfile(repo_root, 'logs');
+        
         if ~isfolder(logs_dir)
             mkdir(logs_dir);
         end
@@ -243,10 +239,13 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         log_filename = sprintf('MANIFEST_%s.txt', timestamp_filename);
         log_path = fullfile(logs_dir, log_filename);
         copyfile(txt_path, log_path);
+        if ~isempty(options.LogDir)        
+            copyfile(txt_path, fullfile(options.LogDir, log_filename));
+        end
         mapping.log_file = log_path;
         fprintf('Saved local log: %s\n', log_path);
     catch ME
-        warning(fprintf('Failed to save local log: %s\n', ME.message));
+        warning('Failed to save local log: %s', ME.message);
     end
     
     %% Determine target directory on SD card
