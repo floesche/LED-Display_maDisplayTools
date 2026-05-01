@@ -305,22 +305,8 @@ classdef ProtocolRunner < handle
                 self.logger.log('WARNING', sprintf( ...
                     'Could not archive protocol YAML: %s', ME.message));
             end
-        
-            % --- Find the manifest whose timestamp matches the YAML filename ---
-            % Both filenames share the trailing yyyymmdd_HHMMSS timestamp inserted
-            % by deploy_experiments_to_sd, e.g.:
-            %   my_exp_20260415_143022.yaml  ->  MANIFEST_20260415_143022.txt
-            token = regexp(yamlName, '(\d{8}_\d{6})$', 'tokens');
-            if isempty(token)
-                self.logger.log('WARNING', sprintf( ...
-                    ['YAML filename "%s" does not contain a yyyymmdd_HHMMSS ' ...
-                     'timestamp suffix - cannot locate paired manifest. ' ...
-                     'Manifest will not be archived.'], yamlName));
-                return;
-            end
-        
-            timestamp = token{1}{1};
-            manifestName = sprintf('MANIFEST_%s.txt', timestamp);
+          
+            manifestName = 'MANIFEST.txt';
             manifestSrc  = fullfile(yamlDir, manifestName);
         
             if ~isfile(manifestSrc)
