@@ -261,9 +261,14 @@ classdef ProtocolRunner < handle
         function getExperimentDirectory(self)
             
             if ~isempty(self.outputDir)
-                self.experimentDir = self.outputDir;
+                ts = char(datetime('now', 'Format', 'MM-dd-yyyy_HH-mm-ss'));
+                fold = ['results' ts];
+                self.experimentDir = fullfile(self.outputDir, fold);
             else
-                [self.experimentDir, ~] = fileparts(self.protocolFilePath);
+                [prot_dir, ~] = fileparts(self.protocolFilePath);
+                ts = char(datetime('now', 'Format', 'MM-dd-yyyy_HH-mm-ss'));
+                fold = ['results' ts];
+                self.experimentDir = fullfile(prot_dir, fold);
             end
 
         end
