@@ -61,6 +61,7 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         options.Format (1,1) logical = false
         options.StagingDir char = ''
         options.ValidateDriveName (1,1) logical = true
+        options.LogDir char = ''
     end
 
     %% Initialize mapping struct
@@ -226,11 +227,15 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
     
     %% Save local log copy
     try
-        this_file = mfilename('fullpath');
-        [this_dir, ~, ~] = fileparts(this_file);
-        repo_root = fileparts(this_dir);  % Go up from utils/
-        logs_dir = fullfile(repo_root, 'logs');
-        
+        if ~isempty(options.LogDir)
+            logs_dir = options.LogDir;
+        else
+            this_file = mfilename('fullpath');
+            [this_dir, ~, ~] = fileparts(this_file);
+            repo_root = fileparts(this_dir);  % Go up from utils/
+            logs_dir = fullfile(repo_root, 'logs');
+        end
+             
         if ~isfolder(logs_dir)
             mkdir(logs_dir);
         end
@@ -241,7 +246,7 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         mapping.log_file = log_path;
         fprintf('Saved local log: %s\n', log_path);
     catch ME
-        warning('Failed to save local log: %s', ME.message);
+        warning(fprintf('Failed to save local log: %s\n', ME.message));
     end
     
     %% Determine target directory on SD card
