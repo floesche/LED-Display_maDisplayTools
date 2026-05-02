@@ -280,11 +280,8 @@ classdef ProtocolRunner < handle
             % Copy the protocol YAML and its paired SD card manifest (if present)
             % into the experiment directory.
             %
-            % Both files are expected to live in the same directory as the
-            % protocol YAML. The manifest is identified by the pattern
-            % MANIFEST_*.txt and the most recently modified match is used,
-            % since a directory may accumulate manifests from prior SD card
-            % preps of the same experiment.
+            % The manifest is matched to the YAML by the shared yyyymmdd_HHMMSS
+            % timestamp that deploy_experiments_to_sd embeds in both filenames.
             %
             % Called immediately after the logger is opened and before any
             % hardware is initialized, so files are captured even if the
@@ -306,7 +303,21 @@ classdef ProtocolRunner < handle
                     'Could not archive protocol YAML: %s', ME.message));
             end
           
-            manifestName = 'MANIFEST.txt';
+            % --- Find the manifest whose timestamp matches the YAML filename ---
+            % Both filenames share the trailing yyyymmdd_HHMMSS timestamp inserted
+            % by deploy_experiments_to_sd, e.g.:
+            %   my_exp_20260415_143022.yaml  ->  MANIFEST_20260415_143022.txt
+            token = regexp(yamlName, '(\d{8}_\d{6})$', 'tokens');
+            if isempty(token)
+                self.logger.log('WARNING', sprintf( ...
+                    ['YAML filename "%s" does not contain a yyyymmdd_HHMMSS ' ...
+                     'timestamp suffix - cannot locate paired manifest. ' ...
+                     'Manifest will not be archived.'], yamlName));
+                return;
+            end
+        
+            timestamp = token{1}{1};
+            manifestName = sprintf('MANIFEST_%s.txt', timestamp);
             manifestSrc  = fullfile(yamlDir, manifestName);
         
             if ~isfile(manifestSrc)
@@ -324,7 +335,7 @@ classdef ProtocolRunner < handle
                 self.logger.log('WARNING', sprintf( ...
                     'Could not archive SD card manifest: %s', ME.message));
             end
-        end        
+        end     
         
         function initializeLogger(self)
             % Create experiment logger
