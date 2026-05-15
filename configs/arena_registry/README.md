@@ -115,6 +115,10 @@ The main arena config files live in `configs/arenas/*.yaml`. This registry simpl
 - Registry name: `G6_2x10`
 - Config file: `configs/arenas/G6_2x10.yaml`
 
+## Relationship to configs/arena_hardware/
+
+For G6 arenas, a controller-side sibling YAML at `configs/arena_hardware/<name>.yaml` carries SPI bus + CS GPIO topology — the hardware facts the geometry YAML deliberately omits. Consumed by `tools/gen_arena_configs.py` to emit a C header (`g6_arena_configs.h`) for the Teensy controller. **Both the script and the first hardware YAML are an untested 2026-05-15 draft** — see the script's banner and `configs/arena_hardware/README.md` for status and validation procedure.
+
 ## Usage in Code
 
 ### Get arena ID from name
@@ -142,13 +146,34 @@ arena_config = load_arena_config('G6_2x10');
   - G4.1: 1 arena (treadmill 2×12)
   - G6: 3 arenas (full 2×10, partial 2×8of10, partial 3×12of18)
 
-## Future Considerations
+## Observer Position Registry (G6 only)
 
-### Observer Position Registry
+The G6 header carries a 6-bit `observer_id` field (pattern-header byte 5 bits 5–0) alongside the 6-bit `arena_id`. Observer ID identifies the **observer perspective** a pattern was rendered for (pitch angle, translation, eye height); the same pattern data may exist multiple times in a library, one per observer perspective.
 
-Future versions may add an observer position registry to record:
-- Observer pitch angle
-- Observer translation (x, y, z)
-- Eye height
+**The controller does NOT use observer_id.** It is metadata for host-side pattern management — the controller treats it as opaque and forwards it to whatever tooling consumes the pattern file.
 
-This would use the 6-bit observer_position_id field in the G6 header (currently set to 0 = unspecified).
+### ID range allocation (G6 observer_id, 6-bit)
+
+| Range | Purpose | Process |
+|-------|---------|---------|
+| 0 | Unspecified / default observer | N/A |
+| 1–20 | Reiser lab official | Maintained by reiserlab |
+| 21–50 | Community registered | Submit PR to this repository |
+| 51–62 | User-defined / experimental | No registration needed |
+| 63 | Reserved | Future use |
+
+Lab-official range is wider than arena_id's (1–20 vs 1–10) because a single rig may render the same pattern library against many observer perspectives over time.
+
+### File layout (planned)
+
+```
+arena_registry/
+├── observers.yaml          # Master ID → name mapping for observers
+└── observers/
+    └── G6/
+        ├── 001_default.yaml
+        ├── 002_<descriptive-name>.yaml
+        └── ...
+```
+
+`observers.yaml` and the per-observer YAML files are **not yet created** (no observer perspectives registered as of 2026-05-15). When the first non-default observer is added, populate `observers.yaml` with the same `{generation: {id → name}}` shape as `index.yaml`, and add one YAML per observer with pitch/translation/eye-height fields.

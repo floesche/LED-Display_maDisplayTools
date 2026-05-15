@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""
+gen_arena_configs.py — emit g6_arena_configs.h from the maDisplayTools registry.
+
+STATUS: UNTESTED / UNVALIDATED DRAFT (2026-05-15).
+This script has not been run against the actual registry, and its output has
+not been validated against the hand-written reference at
+docs/development/g6_arena_configs.h in the parent repo. Before using:
+    1) Run with --dry-run and inspect the generated header.
+    2) Diff against the hand-written reference.
+    3) Adjust either side until they match.
+
+Inputs:
+    - ../configs/arena_registry/index.yaml          (Arena ID → name)
+    - ../configs/arenas/G6_<name>.yaml              (geometry; host-canonical)
+    - ../configs/arena_hardware/G6_<name>.yaml      (SPI/CS topology)
+
+Output:
+    A single C header (`g6_arena_configs.h`) with one G6ArenaConfig entry
+    per registered G6 arena that has BOTH geometry and hardware YAMLs.
+    Registered arenas missing a hardware YAML are skipped with a comment.
+
+Usage:
+    python3 gen_arena_configs.py                          # to stdout
+    python3 gen_arena_configs.py --output ../../../docs/development/g6_arena_configs.h
+
+Dependencies: PyYAML (pip install pyyaml).
+"""
+from __future__ import annotations
+
+import argparse
+import pathlib
+import sys
+from dataclasses import dataclass
+from typing import Optional
+
+try:
+    import yaml
+except ImportError:
+    sys.stderr.write("error: PyYAML not installed. Run: pip install pyyaml\n")
+    sys.exit(1)
+
+
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+CONFIGS_ROOT = (SCRIPT_DIR / ".." / "configs").resolve()
+REGISTRY_INDEX = CONFIGS_ROOT / "arena_registry" / "index.yaml"
+ARENAS_DIR = CONFIGS_ROOT / "arenas"
+HARDWARE_DIR = CONFIGS_ROOT / "arena_hardware"
+
+GENERATION = "G6"
+
+
+@dataclass
+class Panel:
+    row: int
+    col: int
+    spi_bus: int
+    cs_gpio: int
+    cs_sub_index: int
+
+
+@dataclass
+class ArenaOutput:
+    arena_id: int
+    name: str
+    row_count: int
+    col_count: int
+    num_spi_buses: int
+    panels: list[Panel]
+
+
+def load_yaml(path: pathlib.Path) -> dict:
+    with path.open("r") as f:
+        return yaml.safe_load(f)
+
+
+def installed_columns(geometry: dict) -> list[int]:
+    cols = geometry["arena"]["columns_installed"]
+    if cols is None:
+        return list(range(geometry["arena"]["num_cols"]))
+    return list(cols)
+
+
+def build_arena(arena_id: int, name: str,
+                geometry: dict, hardware: dict) -> ArenaOutput:
+    num_rows = geometry["arena"]["num_rows"]
+    num_cols = geometry["arena"]["num_cols"]
+    cols_in = installed_columns(geometry)
+
+    # bus_id by column lookup
+    col_to_bus: dict[int, int] = {}
+    for bus in hardware["spi_buses"]:
+        for c in bus["cols"]:
+            col_to_bus[c] = bus["bus_id"]
+
+    cs_table: dict[int, list[int]] = hardware["cs_gpios_per_column"]
+
+    panels: list[Panel] = []
+    for col in cols_in:
+        if col not in col_to_bus:
+            raise ValueError(f"{name}: col {col} installed but no SPI bus carries it")
+        if col not in cs_table:
+            raise ValueError(f"{name}: col {col} installed but no CS GPIOs in hardware YAML")
+        cs_list = cs_table[col]
+        if len(cs_list) < num_rows:
+            raise ValueError(
+                f"{name}: col {col} has {len(cs_list)} CS GPIOs but arena needs {num_rows} rows"
+            )
+        for row in range(num_rows):
+            panels.append(Panel(
+                row=row,
+                col=col,
+                spi_bus=col_to_bus[col],
+                cs_gpio=cs_list[row],
+                cs_sub_index=row,
+            ))
+
+    return ArenaOutput(
+        arena_id=arena_id,
+        name=name,
+        row_count=num_rows,
+        col_count=num_cols,
+        num_spi_buses=len(hardware["spi_buses"]),
+        panels=panels,
+    )
+
+
+def emit_panels_array(arena: ArenaOutput) -> str:
+    lines = [f"static const G6PanelMapEntry g6_{arena.name}_panels[] = {{"]
+    cur_col: Optional[int] = None
+    for p in arena.panels:
+        if p.col != cur_col:
+            if cur_col is not None:
+                lines.append("")
+            lines.append(f"    /* col {p.col} */")
+            cur_col = p.col
+        lines.append(
+            f"    {{{p.row}, {p.col}, {p.spi_bus}, {p.cs_gpio:3d}, {p.cs_sub_index}}},"
+        )
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def emit_config_entry(arena: ArenaOutput) -> str:
+    return (
+        "    {\n"
+        f"        .arena_id      = {arena.arena_id},\n"
+        f'        .display_name  = "{arena.name}",\n'
+        f"        .row_count     = {arena.row_count},\n"
+        f"        .col_count     = {arena.col_count},\n"
+        f"        .num_spi_buses = {arena.num_spi_buses},\n"
+        f"        .panel_count   = sizeof(g6_{arena.name}_panels) / sizeof(g6_{arena.name}_panels[0]),\n"
+        f"        .panels        = g6_{arena.name}_panels,\n"
+        "    },"
+    )
+
+
+HEADER_PREAMBLE = """\
+/*
+ * g6_arena_configs.h — controller-side panel map keyed by Arena ID.
+ *
+ * GENERATED by maDisplayTools/tools/gen_arena_configs.py — DO NOT EDIT.
+ *
+ * Sources of truth (per arena):
+ *   - Geometry + Arena ID: maDisplayTools/configs/arena_registry/index.yaml
+ *                          + maDisplayTools/configs/arenas/G6_<name>.yaml
+ *   - SPI/CS topology:     maDisplayTools/configs/arena_hardware/G6_<name>.yaml
+ *
+ * To regenerate after a registry change:
+ *     cd Generation\\ 6/maDisplayTools/tools && python3 gen_arena_configs.py \\
+ *         --output ../../../docs/development/g6_arena_configs.h
+ *
+ * STATUS: codegen drafted 2026-05-15 but UNTESTED / UNVALIDATED. The hand-
+ * written reference at docs/development/g6_arena_configs.h is currently
+ * authoritative until this script's output is diff'd and confirmed to match.
+ */
+#ifndef G6_ARENA_CONFIGS_H
+#define G6_ARENA_CONFIGS_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+typedef struct {
+    uint8_t panel_row;
+    uint8_t panel_col;
+    uint8_t spi_bus;
+    uint8_t cs_gpio;
+    uint8_t cs_sub_index;
+} G6PanelMapEntry;
+
+typedef struct {
+    uint8_t                 arena_id;
+    const char             *display_name;
+    uint8_t                 row_count;
+    uint8_t                 col_count;
+    uint8_t                 num_spi_buses;
+    uint8_t                 panel_count;
+    const G6PanelMapEntry  *panels;
+} G6ArenaConfig;
+
+"""
+
+HEADER_FOOTER = """
+static inline const G6ArenaConfig *g6_lookup_arena(uint8_t arena_id) {
+    for (size_t i = 0; i < sizeof(g6_arena_configs) / sizeof(g6_arena_configs[0]); ++i) {
+        if (g6_arena_configs[i].arena_id == arena_id) return &g6_arena_configs[i];
+    }
+    return NULL;
+}
+
+#endif /* G6_ARENA_CONFIGS_H */
+"""
+
+
+def emit_header(emitted: list[ArenaOutput], skipped: list[tuple[int, str, str]]) -> str:
+    parts: list[str] = [HEADER_PREAMBLE]
+
+    for arena in emitted:
+        parts.append(emit_panels_array(arena))
+        parts.append("")
+
+    parts.append("static const G6ArenaConfig g6_arena_configs[] = {")
+    for arena in emitted:
+        parts.append(emit_config_entry(arena))
+    if skipped:
+        parts.append("    /*")
+        parts.append("     * Registered in maDisplayTools but skipped (missing hardware YAML):")
+        for arena_id, name, reason in skipped:
+            parts.append(f"     *   ID {arena_id}: {name} — {reason}")
+        parts.append("     */")
+    parts.append("};")
+    parts.append(HEADER_FOOTER)
+    return "\n".join(parts)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--registry", default=str(REGISTRY_INDEX),
+                    help="path to arena_registry/index.yaml")
+    ap.add_argument("--arenas-dir", default=str(ARENAS_DIR),
+                    help="path to configs/arenas/")
+    ap.add_argument("--hardware-dir", default=str(HARDWARE_DIR),
+                    help="path to configs/arena_hardware/")
+    ap.add_argument("--output", default="-",
+                    help="output path for the generated header (default: stdout)")
+    args = ap.parse_args()
+
+    registry = load_yaml(pathlib.Path(args.registry))
+    g6_entries = registry.get(GENERATION, {}) or {}
+    if not g6_entries:
+        sys.stderr.write(f"warning: no '{GENERATION}' arenas in registry {args.registry}\n")
+
+    emitted: list[ArenaOutput] = []
+    skipped: list[tuple[int, str, str]] = []
+
+    for arena_id in sorted(g6_entries.keys()):
+        name = g6_entries[arena_id]
+        geom_path = pathlib.Path(args.arenas_dir) / f"{name}.yaml"
+        hw_path = pathlib.Path(args.hardware_dir) / f"{name}.yaml"
+        if not geom_path.exists():
+            skipped.append((arena_id, name, f"missing geometry YAML at {geom_path}"))
+            continue
+        if not hw_path.exists():
+            skipped.append((arena_id, name, "hardware does not exist (no arena_hardware YAML)"))
+            continue
+        try:
+            geometry = load_yaml(geom_path)
+            hardware = load_yaml(hw_path)
+            arena = build_arena(arena_id, name, geometry, hardware)
+            emitted.append(arena)
+        except (KeyError, ValueError) as e:
+            skipped.append((arena_id, name, f"build failed: {e}"))
+
+    header = emit_header(emitted, skipped)
+
+    if args.output == "-":
+        sys.stdout.write(header)
+    else:
+        out_path = pathlib.Path(args.output)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(header)
+        sys.stderr.write(
+            f"wrote {len(emitted)} arena(s) to {out_path}; "
+            f"skipped {len(skipped)}.\n"
+        )
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

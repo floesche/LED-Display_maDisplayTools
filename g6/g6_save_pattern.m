@@ -88,13 +88,21 @@ elseif isstruct(arena_config) && isfield(arena_config, 'arena')
         end
     end
 
-    % Create arena config using INSTALLED column count (not full grid)
-    % This ensures panel_mask only contains bits for installed panels
-    arena_config = g6_arena_config(row_count, num_installed_cols, []);
+    % Create arena config using FULL grid col_count (per g6_04-pattern-file-format.md
+    % byte 9 = "Full grid columns in arena (subset installed via panel mask)").
+    % The missing_panels array (built above using full_col_count) carries the
+    % subset-installation info to panel_mask. Prior versions passed
+    % num_installed_cols here, producing a header where col_count was the
+    % installed count and panel_id = row * col_count + col gave the wrong IDs
+    % for partial arenas like G6_2x8of10 / G6_3x12of18.
+    % UNTESTED 2026-05-15: the fix is unverified against the downstream binary
+    % writer and the JS-side round-trip vectors at
+    % g6/g6_encoding_reference.json; re-validate before relying on output.
+    arena_config = g6_arena_config(row_count, full_col_count, missing_panels);
     arena_config.installed_cols = installed_cols;
     arena_config.num_installed_cols = num_installed_cols;
-    arena_config.full_col_count = full_col_count;  % Keep for reference
-    % total_cols matches Pats dimensions (installed columns only)
+    arena_config.full_col_count = full_col_count;  % Kept for downstream consumers
+    % total_cols matches Pats dimensions (installed columns only — host-side bookkeeping)
     arena_config.total_cols = num_installed_cols * 20;
 end
 % Otherwise assume it's already a valid g6_arena_config struct
