@@ -237,6 +237,9 @@ classdef ProtocolRunner < handle
             % Initialize logger
             self.initializeLogger();
             
+            % Copy yaml and manifest files into results folder
+            self.saveExperimentInputFiles()
+            
             % Log experiment start
             self.logger.log('INFO', '=== EXPERIMENT START ===');
             self.logger.log('INFO', sprintf('Protocol: %s', self.protocolFilePath));
@@ -261,12 +264,78 @@ classdef ProtocolRunner < handle
         function getExperimentDirectory(self)
             
             if ~isempty(self.outputDir)
-                self.experimentDir = self.outputDir;
+                ts = char(datetime('now', 'Format', 'MM-dd-yyyy_HH-mm-ss'));
+                fold = ['results' ts];
+                self.experimentDir = fullfile(self.outputDir, fold);
             else
-                [self.experimentDir, ~] = fileparts(self.protocolFilePath);
+                [prot_dir, ~] = fileparts(self.protocolFilePath);
+                ts = char(datetime('now', 'Format', 'MM-dd-yyyy_HH-mm-ss'));
+                fold = ['results' ts];
+                self.experimentDir = fullfile(prot_dir, fold);
             end
 
         end
+
+        function saveExperimentInputFiles(self)
+            % Copy the protocol YAML and its paired SD card manifest (if present)
+            % into the experiment directory.
+            %
+            % The manifest is matched to the YAML by the shared yyyymmdd_HHMMSS
+            % timestamp that deploy_experiments_to_sd embeds in both filenames.
+            %
+            % Called immediately after the logger is opened and before any
+            % hardware is initialized, so files are captured even if the
+            % experiment is later interrupted.
+        
+            yamlDir = fileparts(self.protocolFilePath);
+            if isempty(yamlDir)
+                yamlDir = '.';
+            end
+        
+            % --- Copy the protocol YAML ---
+            [~, yamlName, yamlExt] = fileparts(self.protocolFilePath);
+            destYaml = fullfile(self.experimentDir, [yamlName yamlExt]);
+            try
+                copyfile(self.protocolFilePath, destYaml);
+                self.logger.log('INFO', sprintf('Archived protocol YAML: %s', destYaml));
+            catch ME
+                self.logger.log('WARNING', sprintf( ...
+                    'Could not archive protocol YAML: %s', ME.message));
+            end
+          
+            % --- Find the manifest whose timestamp matches the YAML filename ---
+            % Both filenames share the trailing yyyymmdd_HHMMSS timestamp inserted
+            % by deploy_experiments_to_sd, e.g.:
+            %   my_exp_20260415_143022.yaml  ->  MANIFEST_20260415_143022.txt
+            token = regexp(yamlName, '(\d{8}_\d{6})$', 'tokens');
+            if isempty(token)
+                self.logger.log('WARNING', sprintf( ...
+                    ['YAML filename "%s" does not contain a yyyymmdd_HHMMSS ' ...
+                     'timestamp suffix - cannot locate paired manifest. ' ...
+                     'Manifest will not be archived.'], yamlName));
+                return;
+            end
+        
+            timestamp = token{1}{1};
+            manifestName = sprintf('MANIFEST_%s.txt', timestamp);
+            manifestSrc  = fullfile(yamlDir, manifestName);
+        
+            if ~isfile(manifestSrc)
+                self.logger.log('WARNING', sprintf( ...
+                    'Expected manifest "%s" not found in %s - manifest will not be archived.', ...
+                    manifestName, yamlDir));
+                return;
+            end
+        
+            destManifest = fullfile(self.experimentDir, manifestName);
+            try
+                copyfile(manifestSrc, destManifest);
+                self.logger.log('INFO', sprintf('Archived SD card manifest: %s', destManifest));
+            catch ME
+                self.logger.log('WARNING', sprintf( ...
+                    'Could not archive SD card manifest: %s', ME.message));
+            end
+        end     
         
         function initializeLogger(self)
             % Create experiment logger

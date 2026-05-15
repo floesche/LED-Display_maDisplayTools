@@ -184,11 +184,15 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     %% Step 2: Deploy to SD card
     fprintf('\n=== Deploying to SD card ===\n');
     
+    
     try
         if isempty(staging_dir)
-            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'Format', false);
+            staging_dir = fullfile(output_dir, 'sd_prep');
+            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, ...
+                'Format', false, 'StagingDir', staging_dir);
         else
-            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', staging_dir, 'Format', false);
+            sd_mapping = prepare_sd_card(pattern_paths, sd_drive, 'StagingDir', ...
+                staging_dir, 'Format', false);
         end
     catch ME
         result.error = sprintf('SD card deployment failed: %s', ME.message);
@@ -199,7 +203,7 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     if ~sd_mapping.success
         result.error = sprintf('SD card deployment failed: %s', sd_mapping.error);
         result.sd_mapping = sd_mapping;
-        fprintf('SD card deployment failed: %s', result.sd_mapping);
+        fprintf('SD card deployment failed: %s\n', sd_mapping.error);
         return;
     end
     
@@ -239,6 +243,13 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
             % Don't fail entire process - SD card is already written
         end
     end
+
+    try 
+        timestamped_manifest = create_timestamped_manifest(staging_dir, sd_mapping, output_dir);
+        fprintf('  Created timestamped manifest %s in output directory\n', timestamped_manifest);
+    catch ME
+        warning('deploy_experiments_to_sd:manifestSaveFailed', 'Failed to create timestamped manifest: %s', ME.message);
+    end
     
     %% Success
     result.success = true;
@@ -253,6 +264,23 @@ function result = deploy_experiments_to_sd(yaml_file_paths, sd_drive, output_dir
     fprintf('Updated YAMLs saved to: %s\n', output_dir);
 end
 
+
+function timestamped_manifest = create_timestamped_manifest(staging_dir, sd_mapping, output_dir)
+
+    % Extract timestamp from sd_mapping (format: 'yyyy-mm-ddTHH:MM:SS')
+    % Convert to filename-safe format: 'yyyymmdd_HHMMSS'
+    timestamp_str = sd_mapping.timestamp;
+    timestamp_str = strrep(timestamp_str, '-', '');
+    timestamp_str = strrep(timestamp_str, ':', '');
+    timestamp_str = strrep(timestamp_str, 'T', '_');
+
+    destManifestPath = fullfile(output_dir, ['MANIFEST_' timestamp_str '.txt']);
+    origManifestPath = fullfile(staging_dir, 'MANIFEST.txt');
+
+    copyfile(origManifestPath, destManifestPath);
+    timestamped_manifest = destManifestPath;
+
+end
 
 function [update_info, new_yaml_path] = create_updated_yaml_with_sd_mapping(yaml_path, sd_mapping, output_dir)
 % Create a NEW YAML file with SD card pattern mapping (original untouched)

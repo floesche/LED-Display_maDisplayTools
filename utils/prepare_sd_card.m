@@ -223,8 +223,8 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         return;
     end
     fprintf('Created MANIFEST.txt\n');
-    
-    %% Save local log copy
+
+   %% Save local log copy
     try
         this_file = mfilename('fullpath');
         [this_dir, ~, ~] = fileparts(this_file);
@@ -241,7 +241,7 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
         mapping.log_file = log_path;
         fprintf('Saved local log: %s\n', log_path);
     catch ME
-        warning('Failed to save local log: %s', ME.message);
+        warning('prepare_sd_card:logSaveFailed','Failed to save local log: %s', ME.message);
     end
     
     %% Determine target directory on SD card
