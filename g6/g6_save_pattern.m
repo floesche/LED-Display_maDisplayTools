@@ -209,20 +209,47 @@ arena_config.total_cols = col_count * 20;
 
 end
 
-function panel_mask = create_panel_mask(row_count, col_count, ~)
-% Create panel presence bitmask for INSTALLED panels (6 bytes for up to 48 panels)
+function panel_mask = create_panel_mask(row_count, col_count, missing_panels)
+% Create panel presence bitmask for the FULL grid, clearing bits for missing panels.
+% Per g6_04-pattern-file-format.md byte 9: col_count is the FULL grid column count;
+% panel_mask carries the subset-installation info as a 6-byte (48-bit) bitmask.
 %
-% Note: col_count should be the INSTALLED column count, not full grid.
-% This ensures panel IDs stay within the 48-bit mask capacity.
+% Inputs:
+%   row_count       - Number of panel rows (full grid)
+%   col_count       - Number of panel columns (full grid; matches header byte 9)
+%   missing_panels  - 0-based panel IDs absent from the install
+%                     (panel_id = row * col_count + col, row-major)
+%
+% Returns:
+%   panel_mask - 1x6 uint8 array; bit set = panel present, bit clear = absent
+%
+% Note: row_count * col_count must be <= 48 (mask capacity).
+
+if nargin < 3 || isempty(missing_panels)
+    missing_panels = [];
+end
 
 num_panels = row_count * col_count;
-panel_mask = zeros(1, 6, 'uint8');
+assert(num_panels <= 48, ...
+    sprintf('Full grid has %d panels; mask supports max 48', num_panels));
 
-% Set bits for all installed panels (contiguous 0 to num_panels-1)
+% Start with all installed panels marked present
+panel_mask = zeros(1, 6, 'uint8');
 for panel_id = 0:(num_panels-1)
     byte_idx = floor(panel_id / 8) + 1;
     bit_idx = mod(panel_id, 8);
     panel_mask(byte_idx) = bitset(panel_mask(byte_idx), bit_idx + 1, 1);
+end
+
+% Clear bits for missing panels
+for k = 1:length(missing_panels)
+    panel_id = missing_panels(k);
+    assert(panel_id >= 0 && panel_id < num_panels, ...
+        sprintf('missing_panels contains out-of-range ID %d (max %d)', ...
+                panel_id, num_panels - 1));
+    byte_idx = floor(panel_id / 8) + 1;
+    bit_idx = mod(panel_id, 8);
+    panel_mask(byte_idx) = bitset(panel_mask(byte_idx), bit_idx + 1, 0);
 end
 
 end

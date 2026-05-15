@@ -5,6 +5,11 @@ format_version: "1.0"
 name: "G6_3x12of18"
 description: "G6 arena, 3 rows, 12 of 18 columns installed (240 degree coverage)"
 
+# Controller-side hardware topology: no built hardware exists yet for an 18-col
+# grid (production arena_10-10 is 10-col only). When 18-col hardware is built,
+# add ../arena_hardware/<new-profile>.yaml and set hardware_profile here.
+hardware_profile: null
+
 arena:
   generation: "G6"
   num_rows: 3

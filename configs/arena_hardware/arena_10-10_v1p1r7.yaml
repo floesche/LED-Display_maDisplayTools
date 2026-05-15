@@ -1,5 +1,7 @@
-# Hardware topology for G6_2x10 (production arena_10-10 v1.1.7).
-# Sibling to ../arenas/G6_2x10.yaml (geometry).
+# Hardware topology for the production arena_10-10 v1.1.7 PCB.
+# Referenced by geometry YAMLs in ../arenas/ via their `hardware_profile` field
+# (one hardware file can serve multiple geometries — e.g. G6_2x10 (full) and
+# G6_2x8of10 (partial) both run on this hardware).
 #
 # STATUS: untested / unvalidated draft (2026-05-15).
 # Values mirrored by hand from docs/development/g6_07-arena-firmware-interface.md
@@ -8,8 +10,8 @@
 #
 # Schema documented in ./README.md.
 
-arena: G6_2x10
-hardware: arena_10-10_v1p1r7
+hardware_profile: arena_10-10_v1p1r7    # filename minus .yaml; matches the
+                                         # `hardware_profile` field in geometry YAMLs
 
 spi_buses:
   - bus_id: 0

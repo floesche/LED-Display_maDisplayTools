@@ -6,6 +6,10 @@ format_version: "1.0"
 name: "G6_2x8of10"
 description: "G6 walking arena, 2 rows, 8 of 10 columns installed (288 degree coverage)"
 
+# Controller-side hardware topology: same arena_10-10 PCB as G6_2x10; this
+# geometry just leaves columns 0 and 9 uninstalled (panel_mask handles the rest).
+hardware_profile: "arena_10-10_v1p1r7"
+
 arena:
   generation: "G6"
   num_rows: 2

@@ -11,14 +11,19 @@ docs/development/g6_arena_configs.h in the parent repo. Before using:
     3) Adjust either side until they match.
 
 Inputs:
-    - ../configs/arena_registry/index.yaml          (Arena ID → name)
-    - ../configs/arenas/G6_<name>.yaml              (geometry; host-canonical)
-    - ../configs/arena_hardware/G6_<name>.yaml      (SPI/CS topology)
+    - ../configs/arena_registry/index.yaml                  (Arena ID → name)
+    - ../configs/arenas/G6_<name>.yaml                      (geometry; host-canonical
+                                                             + `hardware_profile` field)
+    - ../configs/arena_hardware/<hardware_profile>.yaml     (SPI/CS topology;
+                                                             one file may serve
+                                                             multiple geometries)
 
 Output:
     A single C header (`g6_arena_configs.h`) with one G6ArenaConfig entry
-    per registered G6 arena that has BOTH geometry and hardware YAMLs.
-    Registered arenas missing a hardware YAML are skipped with a comment.
+    per registered G6 arena whose geometry YAML declares a `hardware_profile`
+    that exists in ../configs/arena_hardware/. Registered arenas whose
+    `hardware_profile` is null or whose hardware YAML is missing are skipped
+    with a comment in the output header.
 
 Usage:
     python3 gen_arena_configs.py                          # to stdout
@@ -164,15 +169,17 @@ HEADER_PREAMBLE = """\
  * Sources of truth (per arena):
  *   - Geometry + Arena ID: maDisplayTools/configs/arena_registry/index.yaml
  *                          + maDisplayTools/configs/arenas/G6_<name>.yaml
- *   - SPI/CS topology:     maDisplayTools/configs/arena_hardware/G6_<name>.yaml
+ *                          (`hardware_profile` field selects topology file below)
+ *   - SPI/CS topology:     maDisplayTools/configs/arena_hardware/<profile>.yaml
  *
- * To regenerate after a registry change:
+ * To regenerate after a registry/geometry/hardware change:
  *     cd Generation\\ 6/maDisplayTools/tools && python3 gen_arena_configs.py \\
  *         --output ../../../docs/development/g6_arena_configs.h
  *
- * STATUS: codegen drafted 2026-05-15 but UNTESTED / UNVALIDATED. The hand-
- * written reference at docs/development/g6_arena_configs.h is currently
- * authoritative until this script's output is diff'd and confirmed to match.
+ * STATUS: codegen and hardware YAML data are unvalidated against firmware
+ * (2026-05-15). Values mirror docs/development/g6_07-arena-firmware-interface.md
+ * § Pin assignments. Confirm via a panel-ID bring-up test before relying on
+ * SPI/CS bindings for production work.
  */
 #ifndef G6_ARENA_CONFIGS_H
 #define G6_ARENA_CONFIGS_H
@@ -256,19 +263,29 @@ def main() -> int:
     for arena_id in sorted(g6_entries.keys()):
         name = g6_entries[arena_id]
         geom_path = pathlib.Path(args.arenas_dir) / f"{name}.yaml"
-        hw_path = pathlib.Path(args.hardware_dir) / f"{name}.yaml"
         if not geom_path.exists():
             skipped.append((arena_id, name, f"missing geometry YAML at {geom_path}"))
             continue
-        if not hw_path.exists():
-            skipped.append((arena_id, name, "hardware does not exist (no arena_hardware YAML)"))
-            continue
         try:
             geometry = load_yaml(geom_path)
+        except (yaml.YAMLError, OSError) as e:
+            skipped.append((arena_id, name, f"failed to parse geometry YAML: {e}"))
+            continue
+        hw_profile = geometry.get("hardware_profile")
+        if not hw_profile:
+            skipped.append((arena_id, name,
+                            "no hardware_profile declared in geometry YAML (hardware does not exist)"))
+            continue
+        hw_path = pathlib.Path(args.hardware_dir) / f"{hw_profile}.yaml"
+        if not hw_path.exists():
+            skipped.append((arena_id, name,
+                            f"hardware_profile '{hw_profile}' missing at {hw_path}"))
+            continue
+        try:
             hardware = load_yaml(hw_path)
             arena = build_arena(arena_id, name, geometry, hardware)
             emitted.append(arena)
-        except (KeyError, ValueError) as e:
+        except (KeyError, ValueError, TypeError, yaml.YAMLError) as e:
             skipped.append((arena_id, name, f"build failed: {e}"))
 
     header = emit_header(emitted, skipped)

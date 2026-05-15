@@ -119,20 +119,32 @@ panel_block(1) = compute_header(panel_block, 203);
 end
 
 function header = compute_header(panel_block, block_len)
-% Compute header byte with version and parity bit
+% Compute header byte with version and parity bit per
+% docs/development/g6_01-panel-protocol.md § Parity Calculation:
+% parity = (count of '1' bits in {version bits 0-6 of byte 0,
+%                                 all bits of byte 1,
+%                                 all bits of bytes 2..N}) mod 2.
 
+version = uint8(1);                       % v1 protocol; bits 0-6 of byte 0
+
+% Count '1' bits in version's bits 0..6 (exclude bit 7 = parity slot).
+% MATLAB bitget is 1-indexed: bits 1..7 == bits 0..6.
 total_ones = 0;
+for bit_idx = 1:7
+    total_ones = total_ones + bitget(version, bit_idx);
+end
+
+% Add '1' bits from cmd + payload (bytes 2..block_len in MATLAB 1-indexing).
 for byte_idx = 2:block_len
     for bit_idx = 1:8
         total_ones = total_ones + bitget(panel_block(byte_idx), bit_idx);
     end
 end
 
-version = uint8(1);
 if mod(total_ones, 2) == 0
     header = version;
 else
-    header = bitor(version, uint8(128));  % Set parity bit
+    header = bitor(version, uint8(128));  % Set parity bit (bit 7)
 end
 
 end

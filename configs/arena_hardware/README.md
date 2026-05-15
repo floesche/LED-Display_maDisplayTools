@@ -7,16 +7,18 @@ Sibling registry to `configs/arenas/` (geometry) and `configs/arena_registry/` (
 ## Why a separate file
 
 - `configs/arenas/G6_<name>.yaml` is host-canonical: rows, cols, orientations, columns-installed, observer angle. The host doesn't care about SPI pins.
-- `configs/arena_hardware/G6_<name>.yaml` (this directory) is controller-canonical: bus assignment per column, CS GPIO per panel slot. Reflects the as-built arena PCB.
-- The two are keyed on the same `name` (matching `configs/arenas/G6_<name>.yaml`); the registry's per-generation Arena ID joins them.
+- `configs/arena_hardware/<hardware_profile>.yaml` (this directory) is controller-canonical: bus assignment per column, CS GPIO per panel slot. Reflects the as-built arena PCB.
+- Geometry YAMLs reference a hardware profile via their `hardware_profile:` field. **One hardware file can serve multiple geometries** — e.g. `G6_2x10` (full install) and `G6_2x8of10` (partial install, cols 0 and 9 absent) both reference `arena_10-10_v1p1r7.yaml` because they run on the same PCB.
+- The registry's per-generation Arena ID joins the geometry → hardware lookup.
 
-A single arena may legitimately have multiple hardware variants over time (PCB revs, expanded row count). Keep one hardware YAML per geometry × hardware-rev combo if needed; the codegen picks by filename.
+A single arena geometry may bind to different hardware profiles over PCB revisions; bump the `hardware_profile:` field in the geometry YAML when migrating.
 
 ## Schema
 
+Filename convention: `<hardware_profile_id>.yaml` (matches the geometry YAML's `hardware_profile:` field). Examples: `arena_10-10_v1p1r7.yaml`.
+
 ```yaml
-arena: G6_2x10                  # must match configs/arenas/<name>.yaml
-hardware: arena_10-10_v1p1r7    # informational; PCB rev this topology targets
+hardware_profile: arena_10-10_v1p1r7    # filename minus .yaml
 
 spi_buses:
   - bus_id: 0                    # 0 = Teensy SPI, 1 = SPI1, etc.
@@ -37,13 +39,13 @@ cs_gpios_per_column:
 ```
 
 The codegen combines:
-- `cols_installed` from the geometry YAML (or all-cols if `null`)
+- `columns_installed` from the geometry YAML (or all-cols if `null`)
 - `num_rows` from the geometry YAML (panels populate rows 0..num_rows-1, using the first `num_rows` entries of each column's `cs_gpios_per_column` list)
+- `hardware_profile` from the geometry YAML (this directory's filename)
 
-…to emit one `G6PanelMapEntry` per installed panel.
+…to emit one `G6PanelMapEntry` per installed panel. Geometry YAMLs whose `hardware_profile` is `null` (e.g. `G6_3x12of18` — no built 18-col hardware yet) are skipped with a comment in the output header.
 
 ## Open issues
 
 - **Partial-row installs** (panel present in row 1 but not row 0 of the same column) are not currently representable in the geometry YAML and not handled by the codegen. Add a `rows_installed` field if/when needed.
-- **Hardware that doesn't exist yet** (e.g. `G6_3x12of18` would need a different bus split) has no file in this directory; the codegen skips such arenas with a comment in the output header.
 - All anticipated G6 hardware uses 2 SPI buses. The schema supports more, but only 2 is exercised today.

@@ -5,6 +5,10 @@ format_version: "1.0"
 name: "G6_2x10"
 description: "Full G6 arena, 2 rows x 10 columns, 360 degree coverage"
 
+# Controller-side hardware topology: references ../arena_hardware/<name>.yaml.
+# Multiple geometries may share one profile (G6_2x10 + G6_2x8of10 both use this one).
+hardware_profile: "arena_10-10_v1p1r7"
+
 arena:
   generation: "G6"
   num_rows: 2
