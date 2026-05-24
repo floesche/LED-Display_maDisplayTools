@@ -10,6 +10,8 @@ This repository provides tools for:
 - **SD Card Deployment** — Prepare patterns for hardware playback
 - **TCP Communication** — Control arena displays via network
 
+> ⚠️ **G6 `.pat` format migration (2026-05-24)** — All G6 v2 `.pat` files produced before merge commit `094e961` (PR [#27](https://github.com/reiserlab/maDisplayTools/pull/27)) are obsolete. The new format adds a CRC-8/AUTOSAR header byte and a per-frame CRC-16/CCITT-FALSE trailer (per [panel-protocol spec](https://github.com/reiserlab/Modular-LED-Display/blob/main/docs/development/g6_04-pattern-file-format.md) § Frame Format). Old files fail file-size validation in `maDisplayTools.load_pat`. Regenerate via `PatternGeneratorApp`, `g6_save_pattern`, or webDisplayTools' `tests/generate-roundtrip-patterns.js`. Verify with `node tests/verify-pat-crc.js <pattern-dir>` (from the webDisplayTools repo). G4 / G4.1 files are unaffected.
+
 ## Quick Start
 
 ```matlab
