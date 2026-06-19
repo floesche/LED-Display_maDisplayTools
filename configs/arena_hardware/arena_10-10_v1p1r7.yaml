@@ -4,7 +4,7 @@
 # G6_2x8of10 (partial) both run on this hardware).
 #
 # STATUS: untested / unvalidated draft (2026-05-15).
-# Values mirrored by hand from docs/development/g6_07-arena-firmware-interface.md
+# Values mirrored by hand from docs/development/g6_06-arena-firmware-interface.md
 # § SPI region-to-bus mapping + § Pin assignments. Confirm against actual
 # arena PCB net-trace before relying on this for bring-up.
 #
