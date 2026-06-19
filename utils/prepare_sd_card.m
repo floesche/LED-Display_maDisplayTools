@@ -207,12 +207,19 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
             error('Could not open file');
         end
         
+        sd_names = cell(num_patterns, 1);
+        for i = 1:num_patterns
+            sd_names{i} = mapping.patterns{i}.new_name;
+        end
+        ps_id = compute_pattern_set_id(sd_names);
+
         fprintf(fid, 'Timestamp: %s\r\n', timestamp_str);
         fprintf(fid, 'SD Drive: %s:\r\n', sd_drive);
         fprintf(fid, 'Pattern Count: %d\r\n', num_patterns);
+        fprintf(fid, 'Pattern Set ID: %s\r\n', ps_id);
         fprintf(fid, '\r\n');
         fprintf(fid, 'Mapping:\r\n');
-        
+
         for i = 1:num_patterns
             fprintf(fid, '%s <- %s\r\n', mapping.patterns{i}.new_name, mapping.patterns{i}.original_path);
         end
@@ -325,4 +332,23 @@ function mapping = prepare_sd_card(pattern_paths, sd_drive, options)
     
     %% Success
     mapping.success = true;
+end
+
+function id = compute_pattern_set_id(names)
+% FNV-1a 32-bit hash over sorted SD filenames, each followed by newline (0x0A).
+% Matches the Teensy firmware's patternSetId() in SdManager.cpp and
+% computePatternSetId() in js/pattern-set.js.
+    names = sort(names);
+    h = uint64(2166136261);
+    prime = uint64(16777619);
+    mask32 = uint64(2^32 - 1);
+    for i = 1:length(names)
+        for j = 1:length(names{i})
+            h = bitand(bitxor(h, uint64(names{i}(j))), mask32);
+            h = bitand(h * prime, mask32);
+        end
+        h = bitand(bitxor(h, uint64(10)), mask32);  % '\n'
+        h = bitand(h * prime, mask32);
+    end
+    id = upper(dec2hex(double(h), 8));
 end
