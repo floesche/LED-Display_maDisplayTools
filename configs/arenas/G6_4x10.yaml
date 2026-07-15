@@ -5,8 +5,9 @@ format_version: "1.0"
 name: "G6_4x10"
 description: "Full G6 arena, 4 rows x 10 columns, 360 degree coverage"
 
-# The production arena_10-10 PCB exposes four chip-select rows per column; this
-# is the largest complete rectangular geometry supported by that topology.
+# Controller-side hardware topology: references ../arena_hardware/<name>.yaml.
+# Shares the arena_10-10 v1.1.7 profile with G6_2x10 / G6_2x8of10 — the same
+# board's CS0..CS3 GPIOs per column now all drive real rows (0..3).
 hardware_profile: "arena_10-10_v1p1r7"
 
 arena:
