@@ -1,0 +1,19 @@
+# Arena configuration for G6 display
+# Full arena: 3 rows x 10 columns, 360 degree coverage
+
+format_version: "1.0"
+name: "G6_3x10"
+description: "Full G6 arena, 3 rows x 10 columns, 360 degree coverage"
+
+# The production arena_10-10 PCB exposes four chip-select rows per column, so
+# this geometry uses the same controller-side topology as G6_2x10.
+hardware_profile: "arena_10-10_v1p1r7"
+
+arena:
+  generation: "G6"
+  num_rows: 3
+  num_cols: 10
+  columns_installed: null    # null = all columns installed
+  orientation: "normal"
+  column_order: "cw"
+  angle_offset_deg: 0
